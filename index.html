@@ -2,6 +2,12 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#224497">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Вентиляция">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Учёт вентиляции</title>
@@ -1220,6 +1226,13 @@ function toast(m){var e=document.getElementById('toast');e.textContent=m;e.class
 // disable all add buttons initially
 [0,1,2,3,4,5,6,7,8].forEach(function(i){var b=document.getElementById('badd'+i);if(b)b.disabled=true;});
 bld();uc();ldSys();onTrSh();onCapSh();onTeeSh();onDLen();
+
+// PWA: регистрация Service Worker для офлайн-работы
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(function(){
+    console.log('SW registered');
+  }).catch(function(e){console.log('SW error',e);});
+}
 </script>
 </body>
 </html>
