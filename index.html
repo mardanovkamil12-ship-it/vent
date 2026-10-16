@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Вентиляция">
 <link rel="apple-touch-icon" href="icon-192.png">
+<meta name="vent-build" content="20261016-182119">
 
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -2585,8 +2586,8 @@ if('serviceWorker' in navigator){
         if(ACT&&(it.t===11||it.t===8)){sect='Оборудование';sub=it.t===11?'Оборудование':'Прочее';}   // в акте «Прочее» = раздел «Оборудование»
         var isoK=(it.iso&&(it.ia||0)>0)?((it.imt||'')+'|'+(it.ith||'')):'';
         var comp=it.comp||null,compK=comp?(comp.kind+'|'+(comp.mat||'')+'|'+(comp.th||comp.d||'')):'';
-        var nd=ACT?String(it.desc||'').replace(/\\s*L\\s*=\\s*[\\d.,]+\\s*м(?![а-яё])/i,'').replace(/\\s*мм(?![а-яё])/,'').replace(/\\s+/g,' ').trim():it.desc;
-        var key=[sect,sub,sys.toUpperCase(),it.t,nd,it.unit||'',isoK,compK,it.th||''].join('\u0001');if(!MERGE)key+='\u0001#'+ix;
+        var nd=ACT?String(it.desc||'').replace(/\s*L\s*=\s*[\d.,]+\s*м(?![а-яё])/i,'').replace(/\s*мм(?![а-яё])/,'').replace(/\s+/g,' ').trim():it.desc;
+        var key=[sect,sub,sys.toUpperCase(),it.t,nd,it.unit||'',isoK,compK,it.th||''].join('');if(!MERGE)key+='#'+ix;
         var r=rows[key];
         if(!r){r={idx:order.length,sect:sect,sub:sub,sys:sys,t:it.t,desc:it.desc,unit0:it.unit||'',qty:0,mt:0,ia:0,lin:0,isoK:isoK,imt:it.imt||'',ith:it.ith||'',comp:comp,nd:nd,th:it.th||'',kind:it.kind||''};rows[key]=r;order.push(key);}
         r.qty+=(+it.qty||0);r.mt+=(+it.mt||0);r.ia+=(+it.ia||0);r.lin+=(+it.lin||0);
@@ -2600,7 +2601,7 @@ if('serviceWorker' in navigator){
         var name=ACT?window.mkActName({t:r.t,desc:r.desc,iso:!!r.isoK,ia:r.isoK?1:0,imt:r.imt,ith:r.ith,comp:r.comp,th:r.th}):String(r.desc||'');
         var VF='Воздуховоды и фасонные элементы';
         var GRP={0:VF,1:VF,2:VF,3:VF,4:VF,5:VF,22:VF,23:VF,15:'Медь',17:'Кабель',19:'Лотки',25:'Дренаж',21:'Гибкие воздуховоды',11:'Оборудование',8:'Прочее'};
-        var pos={sect:r.sect,sub:r.sub,sys:r.sys,name:name.replace(/\\s+/g,' ').trim(),qty:amt,unit:unit,grp:GRP[r.t]||String(r.sub||'').replace(/\\s*\\([^)]*\\)\\s*/g,' ').replace(/\\s+/g,' ').trim()};
+        var pos={sect:r.sect,sub:r.sub,sys:r.sys,name:name.replace(/\s+/g,' ').trim(),qty:amt,unit:unit,grp:GRP[r.t]||String(r.sub||'').replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim()};
         if(ACT&&metal)pos.m2=+r.mt.toFixed(2);                                          // металл, м²
         if(ACT&&r.th)pos.th=r.th;                                                        // толщина стали, мм
         if(ACT&&r.kind)pos.kind=r.kind;                                                  // вид оборудования (для справки по акту)
@@ -2768,7 +2769,7 @@ if('serviceWorker' in navigator){
         var ROUND=[['до 200',0,200,'0,5'],['250 … 450',250,450,'0,6'],['500 … 800',500,800,'0,7'],['900 … 1250',900,1250,'1,0'],['1400 … 1600',1400,1600,'1,2'],['1800 … 2000',1800,2000,'1,4']];
         var row=function(r,shape){var hit=cur&&cur.shape===shape&&cur.m>=r[1]&&cur.m<=r[2];return '<tr'+(hit?' class="ok"':'')+'><td>'+r[0]+'</td><td class="n">'+r[3]+'</td></tr>';};
         var tbl=function(title,rows,shape){return '<h4>'+title+'</h4><table><tr><th>Размер, мм</th><th>Толщина стали, мм</th></tr>'+rows.map(function(r){return row(r,shape);}).join('')+'</table>';};
-        var html='<div class="mk-help"><button class="ibtn mk-help-x" onclick="this.closest(\\'.mk-help-scrim\\').classList.remove(\\'on\\')">×</button><h3>Толщина листовой стали для воздуховодов</h3>'
+        var html='<div class="mk-help"><button class="ibtn mk-help-x" onclick="this.closest(\'.mk-help-scrim\').classList.remove(\'on\')">×</button><h3>Толщина листовой стали для воздуховодов</h3>'
           +'<div>Основание: <b>СП 60.13330.2020</b> «Отопление, вентиляция и кондиционирование воздуха» (актуализированный СНиП 41-01-2003), <b>приложение К</b> — минимальная толщина листовой стали воздуховодов и фасонных частей.</div>'
           +tbl('Прямоугольные воздуховоды — по большей стороне сечения',RECT,'rect')+'<div style="margin-top:4px;color:var(--tx2)"><b>Правило МК Инжиниринг:</b> при большей стороне свыше 1000 мм принимаем <b>1,0 мм</b> (норма СП — 0,9 для 1250…2000). Калькулятор ставит 1,0.</div>'+tbl('Круглые воздуховоды — по диаметру',ROUND,'round')
           +'<h4>Огнестойкие воздуховоды и противодымная вентиляция</h4><div><b>СП 7.13130.2013</b> «Отопление, вентиляция и кондиционирование. Требования пожарной безопасности», <b>п. 6.13</b> (транзитные воздуховоды с нормируемым пределом огнестойкости) и <b>п. 7.11</b> (воздуховоды систем дымоудаления и подпора воздуха): листовая сталь толщиной <b>не менее 0,8 мм</b>, класс герметичности B. Поэтому при огнезащитном покрытии (PRO-МБОР, PRO-Вент и т.п.) и в системах ДУ/ПД калькулятор поднимает толщину до 0,8 мм'+(cur&&cur.fire?' — <span class="ok" style="padding:1px 5px;border-radius:4px">применено к текущему сечению</span>':'')+'.</div>'
@@ -2897,7 +2898,7 @@ if('serviceWorker' in navigator){
         // «Складывать одинаковые»: одинаковые позиции системы показываем одной строкой (сами позиции не меняем — снял галочку, разложились обратно)
         if(isAct()&&window.__mkMerge()){var G={},GO=[];var norm=function(t){return String(t||'').replace(/\s*L\s*=\s*[\d.,]+\s*м(?![а-яё])/i,'').replace(/\s*мм(?![а-яё])/,'').replace(/\s+/g,' ').trim();};
           document.querySelectorAll('#ilist .irow').forEach(function(row){var b=row.querySelector('.ibtn[onclick^="openEdit("]');if(!b)return;var it=items3[parseInt(b.getAttribute('onclick').replace(/[^0-9]+/g,''))];if(!it)return;
-            var k=[(it.sys||'').trim().toUpperCase(),it.t,it.th||'',norm(it.desc),it.unit||'',(it.iso&&(it.ia||0)>0)?(it.imt||'')+'|'+(it.ith||''):'',it.comp?it.comp.kind+'|'+(it.comp.mat||'')+'|'+(it.comp.th||it.comp.d||''):''].join('\u0001');
+            var k=[(it.sys||'').trim().toUpperCase(),it.t,it.th||'',norm(it.desc),it.unit||'',(it.iso&&(it.ia||0)>0)?(it.imt||'')+'|'+(it.ith||''):'',it.comp?it.comp.kind+'|'+(it.comp.mat||'')+'|'+(it.comp.th||it.comp.d||''):''].join('');
             if(!G[k]){G[k]=[];GO.push(k);}G[k].push({row:row,it:it});});
           GO.forEach(function(k){var g=G[k];if(g.length<2)return;var first=g[0].row;var mt=0,qty=0,lin=0;g.forEach(function(x){mt+=(x.it.mt||0);qty+=(+x.it.qty||0);lin+=(+x.it.lin||0);});
             var ar=first.querySelector('.irow-ar');if(ar)ar.textContent=mt>0?(mt.toFixed(2)+' м²'):((Math.round(qty*1000)/1000)+' '+(g[0].it.unit||'шт'));
@@ -2931,7 +2932,13 @@ if('serviceWorker' in navigator){
 L.forEach(function(t){var p=t.parentNode;if(!p||/^(SCRIPT|STYLE)$/.test(p.nodeName))return;var v=t.nodeValue;if(v.indexOf("аявк")<0)return;
 t.nodeValue=v.replace("Заявка / PDF","Объёмы / PDF").replace(/в заявку/g,"в список").replace(/Заявка пуста/g,"Список пуст").replace(/Заявка/g,"Объёмы").replace(/заявки/g,"объёмов");});}catch(e){}}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",fix);else fix();setTimeout(fix,400);
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){try{r.update();}catch(e){}}).catch(function(){});});}
+/* самообновление: при открытии и при возврате в приложение сверяем метку сборки с сервером (мимо кэша) и перезагружаемся один раз */
+(function(){var cur=(document.querySelector('meta[name="vent-build"]')||{}).content||'';
+  function check(){try{if(navigator.onLine===false)return;fetch('index.html?u='+Date.now(),{cache:'no-store'}).then(function(r){return r.ok?r.text():'';}).then(function(t){var m=t.match(/name="vent-build" content="([^"]+)"/);if(m&&m[1]!==cur&&sessionStorage.getItem('vent_reloaded')!==m[1]){sessionStorage.setItem('vent_reloaded',m[1]);location.reload();}}).catch(function(){});}catch(e){}}
+  window.addEventListener('load',function(){setTimeout(check,800);});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')check();});
+})();
 })();
 </script>
 </body>

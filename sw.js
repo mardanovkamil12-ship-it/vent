@@ -1,4 +1,4 @@
-var CACHE_NAME = 'vent-v28';
+var CACHE_NAME = 'vent-v30';
 var URLS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', function(e) {
@@ -24,7 +24,8 @@ self.addEventListener('activate', function(e) {
 
 self.addEventListener('fetch', function(e) {
   e.respondWith(
-    fetch(e.request).then(function(response) {
+    // страница и сам воркер — всегда из сети мимо HTTP-кэша (GitHub Pages держит 10 мин), иначе телефон долго видит старую версию
+    fetch(e.request, (e.request.mode === 'navigate' || /\/(index\.html|sw\.js)?(\?.*)?$/.test(new URL(e.request.url).pathname + (new URL(e.request.url).search))) ? {cache: 'no-store'} : undefined).then(function(response) {
       var clone = response.clone();
       caches.open(CACHE_NAME).then(function(cache) {
         cache.put(e.request, clone);
