@@ -227,6 +227,54 @@ body.mk-act .mk-comp .mk-compex.on{display:block;}
 body.mk-act .mk-comp .frow.c2>div>input,body.mk-act .mk-comp .frow.c2>div>select{width:100%;}
 .mk-cbdg{display:inline-block;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:#e0f2fe;color:#075985;margin-left:3px;vertical-align:middle;}
 .mk-cbdg.iso{background:#fef3c7;color:#78350f;}
+/* акт: в строке только «Изменить»; копия/удаление — через выбор и окно редактирования */
+body.mk-act .irow .mk-cp,body.mk-act .irow .ibtn.del{display:none;}
+body.mk-act .irow .mk-cbdg:not(.mk-xn),body.mk-act .irow .ibdg{display:none;}   /* изоляция/гофра уже в названии */
+.ibtn.mk-edit svg{display:block;}
+#mk-edel{color:var(--dn)!important;border-color:rgba(191,59,46,.35)!important;background:var(--dnbg)!important;}
+/* толщина стали: строка под размерами (только акт) */
+.mk-th{display:none;}
+body.mk-act .mk-th{display:block;margin-top:8px;}
+body.mk-act .mk-th .frow.c2>div>select,body.mk-act .mk-th .frow.c2>div>input{width:100%;}
+body.mk-act .mk-th .mtog{margin:0 0 6px;}
+/* справка по нормативам толщины */
+.mk-gost{color:var(--hi);text-decoration:underline dotted;cursor:help;}
+.mk-help-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;display:none;align-items:center;justify-content:center;padding:16px;}
+.mk-help-scrim.on{display:flex;}
+.mk-help{background:var(--sf);color:var(--tx);border-radius:var(--r);max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:13px;line-height:1.45;}
+.mk-help h3{margin:0 0 6px;font-size:15px;}
+.mk-help h4{margin:14px 0 6px;font-size:13px;color:var(--tx2);}
+.mk-help table{width:100%;border-collapse:collapse;margin:4px 0 2px;}
+.mk-help th,.mk-help td{border:0.5px solid var(--br2);padding:5px 8px;text-align:left;font-size:12.5px;}
+.mk-help th{background:var(--sf2);font-weight:700;}
+.mk-help td.n{text-align:right;font-variant-numeric:tabular-nums;}
+.mk-help .ok{background:var(--hibg);font-weight:700;}
+.mk-help .mk-help-x{float:right;margin:-4px -6px 0 8px;}
+.mk-help small{color:var(--tx3);display:block;margin-top:10px;}
+/* акт: Техника / Инструмент / СИЗ не нужны */
+body.mk-act .ttile[data-t="12"],body.mk-act .ttile[data-t="13"],body.mk-act .ttile[data-t="14"]{display:none;}
+#oi-kindrow{display:none;}
+body.mk-act #oi-kindrow.on{display:grid;}
+/* инструменты списка: отмена/повтор, «складывать одинаковые», копирование */
+.mk-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto;margin-right:8px;}
+.ibtn:disabled{opacity:.35;cursor:default;}
+.mk-merge{display:none;font-size:12px;color:var(--tx2);align-items:center;gap:4px;cursor:pointer;user-select:none;}
+.mk-merge input{margin:0;}
+body.mk-act .mk-merge{display:flex;}
+.mk-cp{font-size:12px;}
+body.mk-act .mk-syshdr .mk-syscp{margin-left:auto;font-size:11px;padding:3px 7px;}
+.mk-syscp-form{display:none;gap:6px;padding:4px 10px 8px;align-items:center;}
+.mk-syscp-form.on{display:flex;}
+.mk-syscp-form input{flex:1;min-width:0;padding:6px 8px;border:0.5px solid var(--br2);border-radius:var(--rs);background:var(--sf);color:var(--tx);font:inherit;font-size:13px;}
+/* выбор нескольких позиций: галочки в строках + панель действий */
+.mk-sel{width:16px;height:16px;margin:0 8px 0 0;flex-shrink:0;cursor:pointer;accent-color:var(--hi);}
+.mk-selall{width:14px;height:14px;margin:0 8px 0 0;cursor:pointer;accent-color:var(--hi);vertical-align:-2px;}
+.irow.mk-on{border-color:var(--hi);box-shadow:inset 0 0 0 1px var(--hi);background:var(--hibg);}
+.mk-selbar{display:none;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 10px;margin-bottom:8px;border:0.5px solid var(--br2);border-radius:var(--rs);background:var(--sf2);font-size:13px;}
+.mk-selbar.on{display:flex;}
+.mk-selbar b{margin-right:4px;white-space:nowrap;}
+.mk-selbar input{flex:1;min-width:90px;padding:6px 8px;border:0.5px solid var(--br2);border-radius:var(--rs);background:var(--sf);color:var(--tx);font:inherit;font-size:13px;}
+.mk-selbar .ibtn.del{color:var(--dn);border-color:rgba(191,59,46,.35);}
 </style>
 </head>
 <body>
@@ -2511,37 +2559,55 @@ if('serviceWorker' in navigator){
 <script>
 (function(){
   
+  // имя узла для акта: тип + размеры (без «L=…» и «мм») + «в изоляции … / в гофре …»; у свободно именуемых — как ввели
+  window.mkActName=function(it,opt){
+    var FREE=[8,10,11,12,13,14,23,24];
+    var name=String(it.desc||'').replace(/\s*L\s*=\s*[\d.,]+\s*м(?![а-яё])/i,'').replace(/\s*мм(?![а-яё])/,'').replace(/\s+/g,' ').trim();
+    var tn=(typeof NMS!=='undefined'&&NMS[it.t])?String(NMS[it.t]):'';
+    if(tn&&FREE.indexOf(it.t)<0&&name.toLowerCase().indexOf(tn.toLowerCase())!==0)name=tn+' '+name;
+    // формат: «Воздуховод 500x250, b - 0,5мм, в изоляции PRO-МБОР 5 мм»
+    var parts=[name];
+    if(it.th&&!(opt&&opt.noTh))parts.push('b - '+String(it.th).replace('.',',')+'мм');   // толщина стали (в списке — отдельной строкой)
+    if(it.iso&&(it.ia||0)>0)parts.push('в изоляции '+(it.imt||'')+(it.ith?' '+it.ith+' мм':''));
+    if(it.comp)parts.push(it.comp.kind==='ti'?'в изоляции '+(it.comp.mat||'')+(it.comp.th?' '+it.comp.th+' мм':''):'в гофре '+(it.comp.mat||'')+(it.comp.d?' Ø'+it.comp.d:''));
+    return parts.map(function(x){return String(x).replace(/\s+/g,' ').trim();}).filter(Boolean).join(', ');
+  };
   function mkCollect(){
     try{
       var items=ci(); if(!items.length) return [];
-      // groupForReport отдаёт урезанные записи (тип/описание/кол-во) и схлопывает одинаковые — изоляцию и спутники берём из исходных позиций
-      var extra={};items.forEach(function(x){var k=[x.t,x.desc,x.unit||'',(x.sys||'').trim()||'—'].join('|');var e=extra[k]||(extra[k]={imt:[],ith:[],comps:{}});
-        if(x.iso){if(x.imt&&e.imt.indexOf(x.imt)<0)e.imt.push(x.imt);if(x.ith&&e.ith.indexOf(String(x.ith))<0)e.ith.push(String(x.ith));}
-        if(x.comp){var ck=x.comp.kind+'|'+(x.comp.mat||'')+'|'+(x.comp.th||x.comp.d||'');var c=e.comps[ck]||(e.comps[ck]={kind:x.comp.kind,mat:x.comp.mat||'',th:x.comp.th||'',d:x.comp.d||'',lin:0});c.lin+=(+x.lin||0);}});
-      var g=groupForReport(items); var positions=[];
-      g.objOrder.forEach(function(objKey){
-        var sectMap=g.objs[objKey];
-        g.SECT_ORDER.forEach(function(sect){
-          if(!sectMap[sect])return; var subMap=sectMap[sect];
-          Object.keys(subMap).forEach(function(subKey){
-            var bucket=subMap[subKey];
-            bucket.sysOrder.forEach(function(sysKey){
-              bucket.sys[sysKey].forEach(function(it){
-                var amt=((it.mt||0)>0)?+(it.mt).toFixed(2):round2(it.qty);
-                var unit=((it.mt||0)>0)?'м²':(it.unit||'шт');
-                positions.push({sect:sect,sub:subKey,sys:(sysKey==='—'?'':sysKey),name:it.desc,qty:amt,unit:unit});
-                // изоляция, отмеченная галочкой на изделии (режим «акт»): отдельная позиция в м² рядом с металлом
-                var ex=extra[[it.t,it.desc,it.unit||'',sysKey].join('|')]||{imt:[],ith:[],comps:{}};
-                if((it.ia||0)>0)positions.push({sect:sect,sub:'Изоляция',sys:(sysKey==='—'?'':sysKey),name:('Изоляция '+ex.imt.join(' / ')).trim()+(ex.ith.length?' '+ex.ith.join('/')+' мм':'')+' — '+it.desc,qty:+(it.ia).toFixed(2),unit:'м²'});
-                // спутник смонтированного узла (режим «акт»): трубная изоляция на меди/дренаже, гофра на кабеле — той же длины
-                Object.keys(ex.comps).forEach(function(ck){var cp=ex.comps[ck];if(!(cp.lin>0))return;var L2=+cp.lin.toFixed(2);
-                  if(cp.kind==='ti')positions.push({sect:sect,sub:'Изоляция',sys:(sysKey==='—'?'':sysKey),name:('Трубная изоляция '+cp.mat).trim()+(cp.th?' '+cp.th+' мм':'')+' — '+it.desc,qty:L2,unit:'м'});
-                  if(cp.kind==='gf')positions.push({sect:sect,sub:'Гофра',sys:(sysKey==='—'?'':sysKey),name:('Гофра '+cp.mat).trim()+(cp.d?' Ø'+cp.d:'')+' — '+it.desc,qty:L2,unit:'м'});});
-              });
-            });
-          });
-        });
+      var ACT=document.body.classList.contains('mk-act');
+      var SECT_ORDER=['Вентиляция','Кондиционирование','АОВ','Оборудование','Крепёж','Прочее'];
+      // одна позиция = смонтированный узел: одинаковые изделия с одинаковой изоляцией/спутником в одной системе складываются
+      var rows={},order=[];
+      var MERGE=!ACT||(window.__mkMerge?window.__mkMerge():true);   // в акте одинаковые складываем только по галочке
+      items.forEach(function(it,ix){
+        var cat=reportCatOf(it.t),sect=cat[0],sub=cat[1],sys=(it.sys||'').trim();
+        if(ACT&&(it.t===11||it.t===8)){sect='Оборудование';sub=it.t===11?'Оборудование':'Прочее';}   // в акте «Прочее» = раздел «Оборудование»
+        var isoK=(it.iso&&(it.ia||0)>0)?((it.imt||'')+'|'+(it.ith||'')):'';
+        var comp=it.comp||null,compK=comp?(comp.kind+'|'+(comp.mat||'')+'|'+(comp.th||comp.d||'')):'';
+        var nd=ACT?String(it.desc||'').replace(/\\s*L\\s*=\\s*[\\d.,]+\\s*м(?![а-яё])/i,'').replace(/\\s*мм(?![а-яё])/,'').replace(/\\s+/g,' ').trim():it.desc;
+        var key=[sect,sub,sys.toUpperCase(),it.t,nd,it.unit||'',isoK,compK,it.th||''].join('\u0001');if(!MERGE)key+='\u0001#'+ix;
+        var r=rows[key];
+        if(!r){r={idx:order.length,sect:sect,sub:sub,sys:sys,t:it.t,desc:it.desc,unit0:it.unit||'',qty:0,mt:0,ia:0,lin:0,isoK:isoK,imt:it.imt||'',ith:it.ith||'',comp:comp,nd:nd,th:it.th||'',kind:it.kind||''};rows[key]=r;order.push(key);}
+        r.qty+=(+it.qty||0);r.mt+=(+it.mt||0);r.ia+=(+it.ia||0);r.lin+=(+it.lin||0);
       });
+      order.sort(function(a,b){var ra=rows[a],rb=rows[b];return (SECT_ORDER.indexOf(ra.sect)-SECT_ORDER.indexOf(rb.sect))||(ra.idx-rb.idx);});
+      var positions=[];
+      order.forEach(function(k){var r=rows[k];
+        var metal=r.mt>0,R3=function(x){return Math.round(x*1000)/1000;};
+        var amt=metal?+r.mt.toFixed(2):R3(r.qty),unit=metal?'м²':(r.unit0||'шт');   // режим «заявка» (как было)
+        if(ACT){ if(r.t===0&&r.lin>0){amt=+r.lin.toFixed(2);unit='м.п.';} else {amt=R3(r.qty);unit=metal?'шт':(r.unit0||'шт');} }   // воздуховоды в акте — всегда м.п. (штуки × длина секции), фасонка — шт
+        var name=ACT?window.mkActName({t:r.t,desc:r.desc,iso:!!r.isoK,ia:r.isoK?1:0,imt:r.imt,ith:r.ith,comp:r.comp,th:r.th}):String(r.desc||'');
+        var VF='Воздуховоды и фасонные элементы';
+        var GRP={0:VF,1:VF,2:VF,3:VF,4:VF,5:VF,22:VF,23:VF,15:'Медь',17:'Кабель',19:'Лотки',25:'Дренаж',21:'Гибкие воздуховоды',11:'Оборудование',8:'Прочее'};
+        var pos={sect:r.sect,sub:r.sub,sys:r.sys,name:name.replace(/\\s+/g,' ').trim(),qty:amt,unit:unit,grp:GRP[r.t]||String(r.sub||'').replace(/\\s*\\([^)]*\\)\\s*/g,' ').replace(/\\s+/g,' ').trim()};
+        if(ACT&&metal)pos.m2=+r.mt.toFixed(2);                                          // металл, м²
+        if(ACT&&r.th)pos.th=r.th;                                                        // толщина стали, мм
+        if(ACT&&r.kind)pos.kind=r.kind;                                                  // вид оборудования (для справки по акту)
+        if(r.lin>0)pos.lin=+r.lin.toFixed(2);                                            // длина, м.п.
+        if(r.isoK)pos.iso={mat:r.imt,th:r.ith,m2:+r.ia.toFixed(2),lin:+(r.lin||0).toFixed(2)};   // изоляция узла
+        if(r.comp)pos.comp={kind:r.comp.kind,mat:r.comp.mat||'',th:r.comp.th||'',d:r.comp.d||'',qty:+(r.lin||r.qty).toFixed(2),unit:'м'};   // труб. изоляция / гофра, м
+        positions.push(pos);});
       return positions;
     }catch(e){return [];}
   }
@@ -2553,7 +2619,7 @@ if('serviceWorker' in navigator){
       var srok=''; var el=document.getElementById('z-srok'); if(el)srok=el.value;
       post({mk:'state',positions:mkCollect(),state:S,srok:srok});
     } else if(d.mk==='setState'&&d.state){
-      try{ S=d.state; if(typeof sv==='function')sv(); if(typeof bld==='function')bld(); if(typeof uc==='function')uc(); if(typeof rl==='function')rl(); }catch(e){}
+      try{ S=d.state; if(typeof sv==='function')sv(); if(typeof bld==='function')bld(); if(typeof uc==='function')uc(); if(typeof rl==='function')rl(); if(window.mkHistReset)window.mkHistReset(); }catch(e){}
     } else if(d.mk==='theme'){
       applyTheme(d.theme);
     }
@@ -2570,13 +2636,33 @@ if('serviceWorker' in navigator){
       // режим «акт»: перегруппировать список Система → позиции (как в приложении «Учёт вентиляции» у бригад), с итогами по системе
       try{if(document.body.classList.contains('mk-act')){var list=document.getElementById('ilist');if(list){var items2=ci();var groups={},order=[];
         list.querySelectorAll('.irow').forEach(function(row){var b=row.querySelector('.ibtn[onclick^="openEdit("]');if(!b)return;var idx=parseInt(b.getAttribute('onclick').replace(/[^0-9]+/g,''));var it=items2[idx];if(!it)return;
-          var k=(it.sys||'').trim()||'Без системы';if(!groups[k]){groups[k]={rows:[],mt:0,ia:0,ti:0,gf:0,n:0};order.push(k);}groups[k].rows.push(row);groups[k].mt+=(it.mt||0);groups[k].ia+=(it.ia||0);if(it.comp&&it.comp.kind==='ti')groups[k].ti+=(it.lin||0);if(it.comp&&it.comp.kind==='gf')groups[k].gf+=(it.lin||0);groups[k].n++;});
+          var kl=(it.sys||'').trim()||'Без системы',k=kl.toUpperCase();if(!groups[k]){groups[k]={label:kl,rows:[],mt:0,ia:0,ti:0,gf:0,n:0};order.push(k);}groups[k].rows.push(row);groups[k].mt+=(it.mt||0);groups[k].ia+=(it.ia||0);if(it.comp&&it.comp.kind==='ti')groups[k].ti+=(it.lin||0);if(it.comp&&it.comp.kind==='gf')groups[k].gf+=(it.lin||0);groups[k].n++;});
         if(order.length){var frag=document.createDocumentFragment();order.forEach(function(k){var g2=groups[k];var box=document.createElement('div');box.className='mk-sysgrp';
-          var h=document.createElement('div');h.className='mk-syshdr';var t=document.createElement('span');t.textContent=k;var sm=document.createElement('small');sm.textContent=g2.n+' поз.'+(g2.mt>0?' · металл '+g2.mt.toFixed(2)+' м²':'')+(g2.ia>0?' · изоляция '+g2.ia.toFixed(2)+' м²':'')+(g2.ti>0?' · труб. изоляция '+g2.ti.toFixed(1)+' м':'')+(g2.gf>0?' · гофра '+g2.gf.toFixed(1)+' м':'');h.appendChild(t);h.appendChild(sm);box.appendChild(h);
+          var h=document.createElement('div');h.className='mk-syshdr';var t=document.createElement('span');t.textContent=g2.label;var sm=document.createElement('small');sm.textContent=g2.n+' поз.'+(g2.mt>0?' · металл '+g2.mt.toFixed(2)+' м²':'')+(g2.ia>0?' · изоляция '+g2.ia.toFixed(2)+' м²':'')+(g2.ti>0?' · труб. изоляция '+g2.ti.toFixed(1)+' м':'')+(g2.gf>0?' · гофра '+g2.gf.toFixed(1)+' м':'');h.appendChild(t);h.appendChild(sm);box.appendChild(h);
           g2.rows.forEach(function(row){box.appendChild(row);});frag.appendChild(box);});
           list.innerHTML='';list.appendChild(frag);}}}}catch(e){}
       return r;};}
+    // ОБЩИЙ РЕДАКТОР для именованных позиций (оборудование, техника, инструмент, СИЗ, крепёж, материалы…):
+    // у них калькулятор не строит полей и не даёт сохранить — добавляем Наименование / Ед. / Кол-во и своё сохранение
+    (function(){
+      var UNITS=['шт','компл','м','м²','м.п.','кг','упак','пар','л','рул','т'];
+      if(typeof openEdit==='function'){var _og=openEdit;window.openEdit=function(i){var r=_og.apply(this,arguments);try{var it=ci()[i];var fl=document.getElementById('edit-fields');
+        if(it&&fl&&!fl.querySelector('input,select')){var u=it.unit||'шт';var opts=UNITS.slice();if(opts.indexOf(u)<0)opts.unshift(u);
+          fl.innerHTML='<div class="frow"><div><label>Наименование</label><input type="text" id="e-nm2" value="'+String(it.desc||'').replace(/"/g,'&quot;')+'"></div></div>'
+            +'<div class="frow c2"><div><label>Ед. изм.</label><select id="e-unit2">'+opts.map(function(o){return '<option value="'+o+'"'+(o===u?' selected':'')+'>'+o+'</option>';}).join('')+'</select></div><div><label>Количество</label><input type="number" id="e-q2" step="any" inputmode="decimal" value="'+(it.qty!=null?it.qty:'')+'"></div></div>';
+          var pv=document.getElementById('edit-prev');var upd=function(){var q=parseFloat(String((document.getElementById('e-q2')||{}).value||'').replace(',','.'))||0;var nm=(document.getElementById('e-nm2')||{}).value||'';if(pv)pv.textContent=(nm.trim()&&q>0)?(nm.trim()+' — '+q+' '+(document.getElementById('e-unit2')||{}).value):'Укажите наименование и количество';};
+          fl.addEventListener('input',upd);fl.addEventListener('change',upd);upd();}
+        }catch(e){}return r;};}
+      if(typeof saveEdit==='function'){var _sg=saveEdit;window.saveEdit=function(){var nm=document.getElementById('e-nm2');if(!nm)return _sg.apply(this,arguments);
+        try{var idx=editIdx;var it=ci()[idx];if(!it)return;var name=nm.value.trim();var q=parseFloat(String(document.getElementById('e-q2').value).replace(',','.'))||0;var u=document.getElementById('e-unit2').value;
+          if(!name){alert('Укажите наименование');return;}if(!(q>0)){alert('Укажите количество');return;}
+          var sysEl=document.getElementById('e-sys');if(sysEl)it.sys=window.mkSysNorm?window.mkSysNorm(sysEl.value):sysEl.value.trim();
+          it.desc=name;it.qty=q;it.unit=u;it.p=Object.assign({},it.p||{},{name:name,unit:u,qty:q});sv();rl();if(typeof uc==='function')uc();closeEdit();
+        }catch(e){}};}
+    })();
     if(typeof openEdit==='function'){var _oe=openEdit;window.openEdit=function(i){
+      // режим акта: в окне редактирования — кнопка «Удалить» (в строке списка её нет)
+      try{if(document.body.classList.contains('mk-act')&&!document.getElementById('mk-edel')){var sb=document.querySelector('#editmod .bact.pr[onclick^="saveEdit"]');if(sb&&sb.parentNode){var db=document.createElement('button');db.className='bact';db.id='mk-edel';db.textContent='Удалить';db.addEventListener('click',function(){if(editIdx<0)return;if(!confirm('Удалить позицию? Можно будет отменить.'))return;var ix=editIdx;closeEdit();delI(ix);});sb.parentNode.insertBefore(db,sb.parentNode.firstChild);}}}catch(e){}
       var keep=null;try{var old=document.getElementById('e-sys');if(old&&i===editIdx&&document.getElementById('editmod').classList.contains('open'))keep=old.value;}catch(e){}
       var r=_oe.apply(this,arguments);
       try{var it=ci()[i];var f=document.getElementById('edit-fields');if(it&&f){var d=document.createElement('div');d.className='frow';
@@ -2584,7 +2670,7 @@ if('serviceWorker' in navigator){
         document.getElementById('e-sys').value=(keep!==null?keep:(it.sys||''));}}catch(e){}
       return r;};}
     if(typeof saveEdit==='function'){var _se=saveEdit;window.saveEdit=function(){
-      var idx=editIdx;var el=document.getElementById('e-sys');var v=el?el.value.trim():null;
+      var idx=editIdx;var el=document.getElementById('e-sys');var v=el?(window.mkSysNorm?window.mkSysNorm(el.value):el.value.trim()):null;
       var r=_se.apply(this,arguments);
       try{if(idx>=0&&v!==null&&!document.getElementById('editmod').classList.contains('open')){var it=ci()[idx];if(it&&(it.sys||'')!==v){it.sys=v;sv();rl();}}}catch(e){}
       return r;};}
@@ -2625,16 +2711,217 @@ if('serviceWorker' in navigator){
       row.parentNode.insertBefore(block('cb','В гофре','<div class="frow c2"><div><label>Гофра</label>'+sel('cb-gmat',['ПВХ','ПНД','Металлорукав'],'Другая…')+own('cb-gmat-own','тип гофры')+'</div><div><label>Диаметр, мм</label>'+sel('cb-gd',['16','20','25','32','40','50','63'],'Другой…')+own('cb-gd-own','диаметр, мм')+'</div></div>'),row.nextSibling);wire('cb');})();
     // изоляция воздуховодов/фасонки: при «Другое» — своё название
     ['dimt','trimt','bimt','eeimt','capimt'].forEach(function(id){var sl=document.getElementById(id);if(!sl||document.getElementById(id+'-own'))return;var m=H(own(id+'-own','название изоляции'));sl.parentNode.appendChild(m);sl.addEventListener('change',function(){m.style.display=sl.value==='Другое'?'block':'none';});});
+    // воздуховоды: «Количество в м.п.» вместо штук (длина секции не нужна — вся длина одной позицией)
+    (function(){var dl=document.getElementById('dlen'),f0=document.getElementById('f0');if(!dl||!f0||document.getElementById('dlin-tog'))return;
+      var row=dl.closest('.frow');if(!row)return;var tg=H('<div class="mtog" id="dlin-row"><input type="checkbox" id="dlin-tog"><label for="dlin-tog">Количество в м.п. (вместо шт)</label></div>');row.parentNode.insertBefore(tg,row.nextSibling);
+      var cb=document.getElementById('dlin-tog');window.__mkLin=function(){return !!cb.checked;};
+      var mp=function(){var v=_dGet0();var id=v.sh==='rect'?(document.getElementById('dm-tog').checked?'dq-man':'dq-sel'):(document.getElementById('dc-tog').checked?'dqr-man':'dqr-sel');var e=document.getElementById(id);return e?(parseFloat(String(e.value).replace(',','.'))||0):0;};
+      var _dGet0=window.dGet,_dLen0=window.dLen,_prevD0=window.prevD;
+      window.dLen=function(){return cb.checked?mp():_dLen0();};
+      window.dGet=function(){var v=_dGet0();if(cb.checked)v.q=mp()>0?1:0;return v;};
+      window.prevD=function(){_prevD0();if(!cb.checked)return;try{var v=_dGet0(),L=mp();var ok=L>0&&(v.sh==='rect'?(v.a&&v.b):v.d);if(!ok)return;var metal=v.sh==='rect'?fRectDuct(v.a,v.b,L):fRoundDuct(v.d,L);var iso=document.getElementById('diso').checked;var ia=iso?metal*getCoef('d'):0;document.getElementById('dprev').innerHTML=L+' м.п.: металл <b>'+metal.toFixed(3)+' м²</b>'+(iso?' + изол. <b>'+ia.toFixed(3)+' м²</b>':'');}catch(e){}};
+      var apply=function(){var on=cb.checked;dl.parentNode.style.display=on?'none':'';['dq-sel','dq-man','dqr-sel','dqr-man'].forEach(function(id){var e=document.getElementById(id);if(!e)return;var lb=e.parentNode.querySelector('label');if(lb)lb.textContent=on?'Кол-во, м.п.':'Кол-во, шт';e.placeholder=on?'м.п.':'шт';if(on){e.step='any';e.min='0.01';e.setAttribute('inputmode','decimal');}else{e.step='1';e.min='1';e.setAttribute('inputmode','numeric');}});try{window.prevD();}catch(e){}};
+      cb.addEventListener('change',apply);
+    })();
+    // ТОЛЩИНА СТАЛИ воздуховодов и фасонки: по ГОСТ автоматически (галочка) или вручную из списка / своё значение.
+    // Таблица (прямоуг. по большей стороне / круглые по диаметру); огнезащита (МБОР, PRO-Вент) и системы ДУ/ПД — не менее 0,8.
+    (function(){
+      var TH_OPTS=['0.5','0.55','0.6','0.7','0.8','0.9','1.0','1.2','1.4','1.5','2.0'];
+      var gost=function(shape,a,b){a=+a||0;b=+b||0;if(shape==='round'){var d=a;return d<=200?0.5:d<=450?0.6:d<=800?0.7:d<=1250?1.0:d<=1600?1.2:1.4;}var m=Math.max(a,b);return m<=250?0.5:m<=1000?0.7:1.0;};   // правило МК: сторона больше 1000 → 1,0 (СП даёт 0,9 для 1250…2000)
+      var fireMat=function(m){return /мбор|mbor|вент|vent|огне|fire|базальт/i.test(String(m||''));};
+      var fireSys=function(){var v=(document.getElementById('sys-inp')||{}).value||'';return /^(ДУ|ПД|ВД|ПДВ|ДВ|ДУВ)\s*\d/i.test(v.trim())||/дым|подпор/i.test(v);};
+      window.mkFireSys=fireSys;
+      var fmt=function(x){x=+x;var t=(Math.round(x*100)/100).toString();return t.indexOf('.')<0?t+'.0':t;};   // 1 → «1.0», как в списке
+      var auto=true;try{auto=localStorage.getItem('mk_thauto')!=='0';}catch(e){}
+      // формы: префикс → {размеры, изоляция, материал, тип}
+      var F={
+        d:  {form:'f0',  iso:'diso',  imt:'dimt',  tog:togISO_d,  size:function(){var v=dGet();return v.sh==='round'?['round',v.d,0]:['rect',v.a,v.b];}},
+        tr: {form:'f1',  iso:'triso', imt:'trimt', tog:togISO_tr, size:function(){var s1=document.getElementById('ts1').value,s2=document.getElementById('ts2').value;var a1=sz('ta1'),b1=sz('tb1'),a2=sz('ta2'),b2=sz('tb2');if(s1==='round'&&s2==='round')return ['round',Math.max(a1,a2),0];return ['rect',Math.max(a1,a2),Math.max(s1==='round'?a1:b1,s2==='round'?a2:b2)];}},
+        b:  {form:'f2',  iso:'biso',  imt:'bimt',  tog:togISO_b,  size:function(){var v=bGet();return v.sh==='round'?['round',v.d,0]:['rect',v.a,v.b];}},
+        ee: {form:'f3',  iso:'eeiso', imt:'eeimt', tog:togISO_ee, size:function(){var sh=document.getElementById('teesh').value;var a=sz('eea'),b=sz('eeb'),c=sz('eec'),d=sz('eed');return sh==='round'?['round',Math.max(a,c),0]:['rect',Math.max(a,c),Math.max(b,d)];}},
+        cap:{form:'f5',  iso:'capiso',imt:'capimt',tog:togISO_cap,size:function(){var s=document.getElementById('capsh').value;return s==='round'?['round',sz('capa'),0]:['rect',sz('capa'),sz('capb')];}}
+      };
+      var T_PREF={0:'d',1:'tr',2:'b',3:'ee',5:'cap'};
+      var busy=false;
+      var calc=function(pref){var f=F[pref];try{var sz0=f.size();if(!(sz0[1]>0))return null;var th=gost(sz0[0],sz0[1],sz0[2]);var iso=document.getElementById(f.iso),mat=document.getElementById(f.imt);if((iso&&iso.checked&&mat&&fireMat(mat.value))||fireSys())th=Math.max(th,0.8);return fmt(th);}catch(e){return null;}};
+      window.mkThVal=function(pref){var sl=document.getElementById(pref+'-th');if(!sl)return '';if(sl.value==='__own'){var o=document.getElementById(pref+'-th-own');return o?String(o.value).replace(',','.').trim():'';}return sl.value;};
+      var setSel=function(pref,v){var sl=document.getElementById(pref+'-th'),own=document.getElementById(pref+'-th-own');if(!sl)return;var has=TH_OPTS.indexOf(v)>=0;if(has){sl.value=v;if(own)own.style.display='none';}else{sl.value='__own';if(own){own.style.display='block';own.value=v;}}};
+      var refresh=function(pref){var f=F[pref];if(!document.getElementById(pref+'-th'))return;var cb=document.getElementById(pref+'-thauto');var on=cb?cb.checked:auto;var sl=document.getElementById(pref+'-th'),own=document.getElementById(pref+'-th-own');sl.disabled=on;if(own)own.disabled=on;
+        if(on){ if(busy)return;busy=true;try{
+            // ДУ/ПД — автоматически в огнезащите
+            if(fireSys()){var iso=document.getElementById(f.iso),mat=document.getElementById(f.imt);if(iso&&!iso.checked){iso.checked=true;try{f.tog();}catch(e){}}if(mat&&!fireMat(mat.value)){mat.value='PRO-МБОР';}}
+            var v=calc(pref);if(v)setSel(pref,v);
+          }finally{busy=false;} }
+        var hint=document.getElementById(pref+'-th-hint');if(hint)hint.textContent=on?('по ГОСТ'+(fireSys()?' · ДУ/ПД → не менее 0,8':'')):'вручную';};
+      Object.keys(F).forEach(function(pref){var f=F[pref];var form=document.getElementById(f.form);if(!form||document.getElementById(pref+'-th'))return;
+        var isoRow=form.querySelector('.isorow');var box=H('<div class="mk-th" id="'+pref+'-throw"><div class="mtog"><input type="checkbox" id="'+pref+'-thauto"'+(auto?' checked':'')+'><label for="'+pref+'-thauto">Толщина стали по <span class="mk-gost" title="Открыть справку по нормативам">ГОСТ</span></label> <small id="'+pref+'-th-hint" style="color:var(--tx3);margin-left:6px"></small></div>'
+          +'<div class="frow c2"><div><label>Толщина стали, мм</label><select id="'+pref+'-th">'+TH_OPTS.map(function(o){return '<option value="'+o+'">'+o.replace('.',',')+'</option>';}).join('')+'<option value="__own">Другая…</option></select><input type="text" id="'+pref+'-th-own" placeholder="толщина, мм" inputmode="decimal" style="display:none;margin-top:6px"></div></div></div>');
+        if(isoRow)isoRow.parentNode.insertBefore(box,isoRow);else form.insertBefore(box,form.querySelector('.badd'));
+        var cb=document.getElementById(pref+'-thauto');cb.addEventListener('change',function(){auto=cb.checked;try{localStorage.setItem('mk_thauto',auto?'1':'0');}catch(e){}Object.keys(F).forEach(function(p2){var c2=document.getElementById(p2+'-thauto');if(c2)c2.checked=auto;refresh(p2);});});
+        var sl=document.getElementById(pref+'-th');sl.addEventListener('change',function(){var own=document.getElementById(pref+'-th-own');if(own)own.style.display=sl.value==='__own'?'block':'none';if(sl.value==='__own'&&own)own.focus();});
+        form.addEventListener('input',function(){refresh(pref);});form.addEventListener('change',function(){refresh(pref);});
+        refresh(pref);});
+      // справка-помощник: нормативы и таблица; подсвечивается строка, применённая к текущему сечению открытой формы
+      window.mkGostHelp=function(pref){
+        var cur=null;try{var f=F[pref];var z=f.size();if(z[1]>0)cur={shape:z[0],m:z[0]==='round'?+z[1]:Math.max(+z[1],+z[2]),fire:(document.getElementById(f.iso)||{}).checked&&fireMat((document.getElementById(f.imt)||{}).value)||fireSys()};}catch(e){}
+        var RECT=[['до 250',0,250,'0,5'],['300 … 1000',300,1000,'0,7'],['1250 … 2000',1250,2000,'1,0 <span style="color:var(--tx3);font-weight:400">(СП: 0,9)</span>'],['более 2000',2001,1e9,'1,0 <span style="color:var(--tx3);font-weight:400">(СП: по расчёту)</span>']];
+        var ROUND=[['до 200',0,200,'0,5'],['250 … 450',250,450,'0,6'],['500 … 800',500,800,'0,7'],['900 … 1250',900,1250,'1,0'],['1400 … 1600',1400,1600,'1,2'],['1800 … 2000',1800,2000,'1,4']];
+        var row=function(r,shape){var hit=cur&&cur.shape===shape&&cur.m>=r[1]&&cur.m<=r[2];return '<tr'+(hit?' class="ok"':'')+'><td>'+r[0]+'</td><td class="n">'+r[3]+'</td></tr>';};
+        var tbl=function(title,rows,shape){return '<h4>'+title+'</h4><table><tr><th>Размер, мм</th><th>Толщина стали, мм</th></tr>'+rows.map(function(r){return row(r,shape);}).join('')+'</table>';};
+        var html='<div class="mk-help"><button class="ibtn mk-help-x" onclick="this.closest(\\'.mk-help-scrim\\').classList.remove(\\'on\\')">×</button><h3>Толщина листовой стали для воздуховодов</h3>'
+          +'<div>Основание: <b>СП 60.13330.2020</b> «Отопление, вентиляция и кондиционирование воздуха» (актуализированный СНиП 41-01-2003), <b>приложение К</b> — минимальная толщина листовой стали воздуховодов и фасонных частей.</div>'
+          +tbl('Прямоугольные воздуховоды — по большей стороне сечения',RECT,'rect')+'<div style="margin-top:4px;color:var(--tx2)"><b>Правило МК Инжиниринг:</b> при большей стороне свыше 1000 мм принимаем <b>1,0 мм</b> (норма СП — 0,9 для 1250…2000). Калькулятор ставит 1,0.</div>'+tbl('Круглые воздуховоды — по диаметру',ROUND,'round')
+          +'<h4>Огнестойкие воздуховоды и противодымная вентиляция</h4><div><b>СП 7.13130.2013</b> «Отопление, вентиляция и кондиционирование. Требования пожарной безопасности», <b>п. 6.13</b> (транзитные воздуховоды с нормируемым пределом огнестойкости) и <b>п. 7.11</b> (воздуховоды систем дымоудаления и подпора воздуха): листовая сталь толщиной <b>не менее 0,8 мм</b>, класс герметичности B. Поэтому при огнезащитном покрытии (PRO-МБОР, PRO-Вент и т.п.) и в системах ДУ/ПД калькулятор поднимает толщину до 0,8 мм'+(cur&&cur.fire?' — <span class="ok" style="padding:1px 5px;border-radius:4px">применено к текущему сечению</span>':'')+'.</div>'
+          +'<small>Это минимальные значения по нормам. Если проектом задана большая толщина — снимите галочку и укажите её вручную. Проверяйте по действующей редакции документов.</small></div>';
+        var sc=document.getElementById('mk-help-scrim');if(!sc){sc=document.createElement('div');sc.id='mk-help-scrim';sc.className='mk-help-scrim';sc.addEventListener('click',function(e){if(e.target===sc)sc.classList.remove('on');});document.body.appendChild(sc);}
+        sc.innerHTML=html;sc.classList.add('on');};
+      document.addEventListener('click',function(e){var g=e.target&&e.target.closest&&e.target.closest('.mk-gost');if(!g)return;e.preventDefault();e.stopPropagation();var row=g.closest('.mk-th');var pref=row?row.id.replace('-throw',''):'d';window.mkGostHelp(pref);},true);
+      var si=document.getElementById('sys-inp');if(si){si.addEventListener('input',function(){Object.keys(F).forEach(refresh);});si.addEventListener('change',function(){Object.keys(F).forEach(refresh);});}
+      window.mkThRefreshAll=function(){Object.keys(F).forEach(refresh);};
+      // при добавлении — толщина уходит в позицию
+      if(typeof push==='function'){var _pt=push;window.push=function(it){try{if(it&&T_PREF[it.t]!=null){var v=window.mkThVal(T_PREF[it.t]);if(v)it.th=v;}}catch(e){}return _pt.apply(this,arguments);};}
+      // окно редактирования: поле толщины
+      if(typeof openEdit==='function'){var _oe2=openEdit;window.openEdit=function(i){var r=_oe2.apply(this,arguments);try{var it=ci()[i];var fl=document.getElementById('edit-fields');if(it&&fl&&T_PREF[it.t]!=null&&!document.getElementById('e-th')){var d=document.createElement('div');d.className='frow';d.innerHTML='<div><label>Толщина стали, мм</label><select id="e-th">'+TH_OPTS.map(function(o){return '<option value="'+o+'">'+o.replace('.',',')+'</option>';}).join('')+'<option value="__own">Другая…</option><option value="">— не указана —</option></select><input type="text" id="e-th-own" placeholder="толщина, мм" inputmode="decimal" style="display:none;margin-top:6px"></div>';fl.appendChild(d);
+          var sl=document.getElementById('e-th'),own=document.getElementById('e-th-own');var v=it.th||'';if(!v)sl.value='';else if(TH_OPTS.indexOf(v)>=0)sl.value=v;else{sl.value='__own';own.style.display='block';own.value=v;}
+          sl.addEventListener('change',function(){own.style.display=sl.value==='__own'?'block':'none';});}}catch(e){}return r;};}
+      if(typeof saveEdit==='function'){var _se2=saveEdit;window.saveEdit=function(){var idx=editIdx;var sl=document.getElementById('e-th');var v=null;if(sl){v=sl.value==='__own'?String((document.getElementById('e-th-own')||{}).value||'').replace(',','.').trim():sl.value;}var r=_se2.apply(this,arguments);try{if(idx>=0&&v!==null&&!document.getElementById('editmod').classList.contains('open')){var it=ci()[idx];if(it&&(it.th||'')!==v){it.th=v;sv();rl();}}}catch(e){}return r;};}
+    })();
+    // подсказки расчёта в режиме акта: металл и изоляция — раздельно (не складываем в «итого»), у воздуховодов ещё м.п.
+    (function(){
+      var f2=function(x){return (Math.round(x*100)/100).toString().replace('.',',');};
+      var line=function(mt,lin,ia,imt,ith){var t='Металл: <b>'+f2(mt)+' м²</b>'+(lin>0?' · <b>'+f2(lin)+' м.п.</b>':'');if(ia>0)t+='<br>Изоляция'+(imt?' '+imt:'')+(ith?' '+ith+' мм':'')+': <b>'+f2(ia)+' м²</b>';return t;};
+      if(typeof ePrev==='function'){var _ep=ePrev;window.ePrev=function(){var r0=_ep.apply(this,arguments);try{var prev=document.getElementById('edit-prev');var r=eCalc();var q=eGetI('e-q')||0;if(prev&&r.ok&&q&&r.mt>0)prev.innerHTML=line(r.mt*q,(r.lin||0)*q,(r.ia||0)*q,r.imt,r.ith);}catch(e){}return r0;};}
+      if(typeof prevD==='function'){var _pd=window.prevD;window.prevD=function(){var r0=_pd.apply(this,arguments);try{var v=dGet(),L=dLen();if(!v.q||!(L>0))return r0;var metal=v.sh==='rect'?(v.a&&v.b?fRectDuct(v.a,v.b,L):0):(v.d?fRoundDuct(v.d,L):0);if(!(metal>0))return r0;var iso=document.getElementById('diso').checked;var ia=iso?metal*getCoef('d'):0;document.getElementById('dprev').innerHTML=line(metal*v.q,L*v.q,ia*v.q,iso?document.getElementById('dimt').value:'',iso?gv('dith'):0);}catch(e){}return r0;};}
+    })();
+    // раздел «Оборудование» (вместо «Прочее»): вид вентоборудования из списка + размер; «Прочее» — всё остальное
+    (function(){
+      var st=document.getElementById('asub3');if(st)st.textContent='Оборудование';
+      try{OI_TITLES[11]=['Оборудование','Вентоборудование: вид из списка + размер'];OI_TITLES[8]=['Прочее','Всё остальное — произвольная позиция'];OI_PH[11]='напр. Канальный вентилятор круглый Ø250';}catch(e){}
+      var nm=document.getElementById('oi-name');var row=nm&&nm.closest('.frow');if(!row||document.getElementById('oi-kind'))return;
+      var KINDS=['Канальный вентилятор круглый','Канальный вентилятор прямоугольный','Крышный вентилятор','Осевой вентилятор','Вентилятор радиальный','Вентилятор дымоудаления','Приточная установка','Приточно-вытяжная установка','Вытяжная установка','Рекуператор','Фильтр','Калорифер водяной','Калорифер электрический','Охладитель','Шумоглушитель','Клапан воздушный с приводом','Клапан обратный','Клапан противопожарный','Клапан дымоудаления','Привод клапана','Регулятор расхода','Диффузор','Анемостат','Решётка','Воздухораспределитель','Зонт вытяжной','Дефлектор','Гибкая вставка','Смесительный узел','Щит автоматики','Увлажнитель','Завеса воздушная','Кондиционер (блок)','Фанкойл'];
+      var el=H('<div class="frow c2" id="oi-kindrow"><div><label>Вид оборудования</label><select id="oi-kind">'+KINDS.map(function(k){return '<option>'+k+'</option>';}).join('')+'<option value="__own">Другое…</option></select></div><div><label>Размер / типоразмер</label><input type="text" id="oi-size" placeholder="500x200, Ø250, 1000 м³/ч"></div></div>');
+      row.parentNode.insertBefore(el,row);
+      var kind=document.getElementById('oi-kind'),size=document.getElementById('oi-size');
+      var fill=function(){if(typeof oiCat!=='undefined'&&oiCat!==11)return;if(kind.value==='__own'){nm.placeholder='введите наименование';return;}nm.value=(kind.value+' '+size.value.trim()).trim();try{prevOi();}catch(e){}};
+      kind.addEventListener('change',fill);size.addEventListener('input',fill);
+      if(typeof updOiForm==='function'){var _u=updOiForm;window.updOiForm=function(){var r=_u.apply(this,arguments);el.classList.toggle('on',oiCat===11);return r;};}
+      // после добавления — очистить размер (вид оставить)
+      if(typeof addOi==='function'){var _a=addOi;window.addOi=function(){window.__mkOiKind=(oiCat===11&&kind.value!=='__own')?kind.value:'';var r=_a.apply(this,arguments);window.__mkOiKind='';try{if(oiCat===11&&!nm.value)size.value='';}catch(e){}return r;};}
+      if(typeof push==='function'){var _pk=push;window.push=function(it){try{if(it&&it.t===11&&window.__mkOiKind)it.kind=window.__mkOiKind;}catch(e){}return _pk.apply(this,arguments);};}
+    })();
     // при добавлении — пришиваем спутник к позиции
     if(typeof push==='function'&&!window.__mkPushWrapped){window.__mkPushWrapped=true;var _push=push;window.push=function(it){
       try{
         if(it&&(it.t===15||it.t===25)){var pref=it.t===15?'cu':'dr';var on=document.getElementById(pref+'-ison');if(on&&on.checked){var mat=val(pref+'-imat'),th=val(pref+'-ith');it.comp={kind:'ti',mat:mat,th:th};}}
+        if(it&&it.t===0&&window.__mkLin&&window.__mkLin())it.linMode=true;
         if(it&&it.t===17){var on2=document.getElementById('cb-ison');if(on2&&on2.checked){it.comp={kind:'gf',mat:val('cb-gmat'),d:val('cb-gd')};}}
         if(it&&it.iso&&it.imt==='Другое'){var ids={0:'dimt',1:'trimt',2:'bimt',3:'eeimt',5:'capimt'};var m=document.getElementById((ids[it.t]||'dimt')+'-own');if(m&&m.value.trim())it.imt=m.value.trim();}
       }catch(e){}
       return _push.apply(this,arguments);};}
     try{rl();}catch(e){}
   };
+  // ИНСТРУМЕНТЫ СПИСКА: отмена/повтор (снимки S.items на каждом сохранении), копия строки, копия системы, опция «складывать одинаковые»
+  (function(){
+    if(window.__mkToolsDone)return;window.__mkToolsDone=true;
+    var isAct=function(){return document.body.classList.contains('mk-act');};   // класс режима ставит родитель позже загрузки
+    var H=function(h){var d=document.createElement('div');d.innerHTML=h;return d.firstChild;};
+    var hist={undo:[],redo:[],last:null,lock:false,CAP:60};
+    var snap=function(){try{return JSON.stringify(S.items);}catch(e){return null;}};
+    hist.last=snap();
+    var upd=function(){var u=document.getElementById('mk-undo'),r=document.getElementById('mk-redo');if(u)u.disabled=!hist.undo.length;if(r)r.disabled=!hist.redo.length;};
+    if(typeof sv==='function'&&!window.__mkSvWrapped){window.__mkSvWrapped=true;var _sv=sv;window.sv=function(){
+      try{if(!hist.lock){var cur=snap();if(cur!==null&&cur!==hist.last){if(hist.last!==null){hist.undo.push(hist.last);if(hist.undo.length>hist.CAP)hist.undo.shift();}hist.redo=[];hist.last=cur;upd();try{post({mk:'changed'});}catch(e){}}}}catch(e){}
+      return _sv.apply(this,arguments);};}
+    var restore=function(json){hist.lock=true;try{S.items=JSON.parse(json);hist.last=json;sv();rl();uc();}catch(e){}hist.lock=false;upd();try{post({mk:'changed'});}catch(e){}};
+    window.mkUndo=function(){if(!hist.undo.length)return;hist.redo.push(snap());restore(hist.undo.pop());};
+    window.mkRedo=function(){if(!hist.redo.length)return;hist.undo.push(snap());restore(hist.redo.pop());};
+    window.mkHistReset=function(){hist.undo=[];hist.redo=[];hist.last=snap();upd();};
+    var lh=document.querySelector('.lhdr');
+    if(lh&&!document.getElementById('mk-undo')){
+      var box=H('<div class="mk-tools"><button class="ibtn" id="mk-undo" title="Отменить последнее действие" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg> Отменить</button><button class="ibtn" id="mk-redo" title="Вернуть отменённое" disabled><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button><label class="mk-merge" title="Одинаковые позиции одной системы — одной строкой в акте"><input type="checkbox" id="mk-merge"> Складывать одинаковые</label></div>');
+      lh.insertBefore(box,lh.lastElementChild);
+      document.getElementById('mk-undo').addEventListener('click',function(){window.mkUndo();});
+      document.getElementById('mk-redo').addEventListener('click',function(){window.mkRedo();});
+      var mg=document.getElementById('mk-merge');if(mg){try{mg.checked=localStorage.getItem('mk_merge')==='1';}catch(e){}mg.addEventListener('change',function(){try{localStorage.setItem('mk_merge',mg.checked?'1':'0');}catch(e){}try{rl();}catch(e){}try{post({mk:'changed'});}catch(e){}});}
+    }
+    window.__mkMerge=function(){var mg=document.getElementById('mk-merge');return (mg&&isAct())?!!mg.checked:true;};
+    // имя системы — всегда в верхнем регистре («п1» → «П1»), чтобы не плодились одинаковые системы
+    var norm=function(v){return String(v||'').trim().toUpperCase();};window.mkSysNorm=norm;
+    (function(){var inp=document.getElementById('sys-inp');if(inp){inp.addEventListener('input',function(){var n=norm(inp.value);if(inp.value!==n)inp.value=n;});inp.addEventListener('change',function(){inp.value=norm(inp.value);try{saveSys();}catch(e){}});}
+      if(typeof saveSys==='function'){var _ss=saveSys;window.saveSys=function(){var i2=document.getElementById('sys-inp');if(i2)i2.value=norm(i2.value);return _ss.apply(this,arguments);};}
+      if(typeof push==='function'){var _p2=push;window.push=function(it){var i3=document.getElementById('sys-inp');if(i3)i3.value=norm(i3.value);var r=_p2.apply(this,arguments);try{if(it&&it.sys!=null)it.sys=norm(it.sys);}catch(e){}return r;};}
+      // уже набранное — привести к одному виду
+      try{var ch=false;Object.keys(S.items||{}).forEach(function(k){(S.items[k]||[]).forEach(function(it){if(it&&it.sys!=null){var n=norm(it.sys);if(it.sys!==n){it.sys=n;ch=true;}}});});if(ch)sv();}catch(e){}
+    })();
+    var clone=function(it,sys){var c=JSON.parse(JSON.stringify(it));c.id=S.nid++;c.sys=norm(sys);return c;};
+    // копия строки — в систему из поля «Система» (так удобно переносить отдельные позиции в другую систему)
+    window.mkCopyRow=function(i){var it=ci()[i];if(!it)return;var inp=document.getElementById('sys-inp');var sys=(inp&&inp.value.trim())||it.sys||'';ci().push(clone(it,sys));sv();rl();uc();};
+    // копия системы целиком в другую (одинаковые системы на разных этажах)
+    window.mkCopySys=function(from,to){to=norm(to);if(!to)return 0;var src=ci().filter(function(it){return ((it.sys||'').trim()||'Без системы').toUpperCase()===String(from||'').toUpperCase();});if(!src.length)return 0;var add=src.map(function(it){return clone(it,to);});Array.prototype.push.apply(ci(),add);sv();rl();uc();return add.length;};
+    // --- выбор нескольких позиций (по id, переживает перерисовку) ---
+    var SEL={ids:{}};
+    var selIds=function(){return Object.keys(SEL.ids).filter(function(k){return SEL.ids[k];});};
+    var selItems=function(){var ids=selIds();return ci().filter(function(it){return ids.indexOf(String(it.id))>=0;});};
+    var selBar=function(){var bar=document.getElementById('mk-selbar');if(bar)return bar;var list=document.getElementById('ilist');if(!list)return null;
+      bar=H('<div class="mk-selbar" id="mk-selbar"><b id="mk-seln"></b><input type="text" id="mk-selsys" placeholder="в какую систему, напр. П2"><button class="ibtn" id="mk-selcp" title="Скопировать выбранные позиции в указанную систему">Копировать</button><button class="ibtn" id="mk-selmv" title="Перенести выбранные позиции в указанную систему">Перенести</button><button class="ibtn del" id="mk-seldel" title="Удалить выбранные позиции">Удалить</button><button class="ibtn" id="mk-selx" title="Снять выбор">×</button></div>');
+      list.parentNode.insertBefore(bar,list);
+      var sysV=function(){var v=norm(document.getElementById('mk-selsys').value);if(!v){document.getElementById('mk-selsys').focus();}return v;};
+      document.getElementById('mk-selcp').addEventListener('click',function(){var to=sysV();if(!to)return;var add=selItems().map(function(it){return clone(it,to);});if(!add.length)return;Array.prototype.push.apply(ci(),add);SEL.ids={};sv();rl();uc();});
+      document.getElementById('mk-selmv').addEventListener('click',function(){var to=sysV();if(!to)return;var its=selItems();if(!its.length)return;its.forEach(function(it){it.sys=norm(to);});SEL.ids={};sv();rl();uc();});
+      document.getElementById('mk-seldel').addEventListener('click',function(){var ids=selIds();if(!ids.length)return;if(!confirm('Удалить выбранные позиции ('+ids.length+')? Можно будет отменить.'))return;S.items[S.cur]=ci().filter(function(it){return ids.indexOf(String(it.id))<0;});SEL.ids={};sv();rl();uc();});
+      document.getElementById('mk-selx').addEventListener('click',function(){SEL.ids={};rl();});
+      return bar;};
+    var selUpd=function(){var bar=selBar();if(!bar)return;var n=selIds().length;bar.classList.toggle('on',n>0);var b=document.getElementById('mk-seln');if(b)b.textContent='Выбрано: '+n;};
+    window.mkDelGroup=function(ids){if(!ids.length)return;if(!confirm('Удалить все одинаковые позиции ('+ids.length+')? Можно будет отменить.'))return;S.items[S.cur]=ci().filter(function(it){return ids.indexOf(String(it.id))<0;});sv();rl();uc();};
+    window.mkSelToggle=function(id,on){if(on)SEL.ids[String(id)]=true;else delete SEL.ids[String(id)];selUpd();};
+    if(typeof rl==='function'){var _rl2=rl;window.rl=function(){var r=_rl2.apply(this,arguments);
+      try{
+        var items3=ci();
+        // режим акта: строка называется как в акте («Воздуховод 500x250 в изоляции PRO-МБОР 5 мм»), без имени подраздела
+        if(isAct())document.querySelectorAll('#ilist .irow').forEach(function(row){if(row.dataset.mkNamed)return;var b=row.querySelector('.ibtn[onclick^="openEdit("]');if(!b)return;var it=items3[parseInt(b.getAttribute('onclick').replace(/[^0-9]+/g,''))];if(!it)return;row.dataset.mkNamed='1';
+          var nm=row.querySelector('.irow-nm'),ds=row.querySelector('.irow-ds');if(!nm)return;
+          var keep=[].slice.call(nm.querySelectorAll('span'));nm.textContent=window.mkActName(it,{noTh:true});keep.forEach(function(sp){if(!sp.classList.contains('ibdg'))nm.appendChild(sp);});
+          if(ds){var det=[];if(it.t===0&&it.lin>0)det.push((Math.round(it.lin*100)/100)+' м.п.');if(it.th)det.push('сталь '+String(it.th).replace('.',',')+' мм');ds.textContent=det.join('; ');ds.style.display=det.length?'':'none';}
+          var ico=row.querySelector('.irow-ico');if(ico&&!ico.innerHTML.trim())ico.innerHTML='<svg viewBox="0 0 36 36" width="22" height="22" fill="none"><rect x="7" y="10" width="22" height="16" rx="2" stroke="currentColor" stroke-width="2.2"/><circle cx="13" cy="18" r="3" stroke="currentColor" stroke-width="2"/><line x1="20" y1="15" x2="26" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="21" x2="26" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';});
+        document.querySelectorAll('#ilist .irow .ibtn[onclick^="openEdit("]').forEach(function(b){if(b.classList.contains('mk-edit'))return;b.classList.add('mk-edit');b.title='Изменить';b.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';});
+        // галочка выбора в начале каждой строки
+        document.querySelectorAll('#ilist .irow').forEach(function(row){if(row.querySelector('.mk-sel'))return;var b=row.querySelector('.ibtn[onclick^="openEdit("]');if(!b)return;var idx=parseInt(b.getAttribute('onclick').replace(/[^0-9]+/g,''));var it=items3[idx];if(!it)return;
+          if(it.id==null){it.id=S.nid++;}
+          var cb=H('<input type="checkbox" class="mk-sel" title="Выбрать позицию">');cb.checked=!!SEL.ids[String(it.id)];row.classList.toggle('mk-on',cb.checked);
+          cb.addEventListener('change',function(){window.mkSelToggle(it.id,cb.checked);row.classList.toggle('mk-on',cb.checked);});row.insertBefore(cb,row.firstChild);});
+        // в заголовке системы — «выбрать все позиции системы»
+        if(isAct())document.querySelectorAll('#ilist .mk-sysgrp').forEach(function(g){var h=g.querySelector('.mk-syshdr');if(!h||h.querySelector('.mk-selall'))return;var rows=[].slice.call(g.querySelectorAll('.irow .mk-sel'));if(!rows.length)return;
+          var all=H('<input type="checkbox" class="mk-selall" title="Выбрать все позиции системы">');all.checked=rows.every(function(c){return c.checked;});
+          all.addEventListener('change',function(){rows.forEach(function(c){if(c.checked!==all.checked){c.checked=all.checked;c.dispatchEvent(new Event('change'));}});});h.insertBefore(all,h.firstChild);});
+        selUpd();
+        // «Складывать одинаковые»: одинаковые позиции системы показываем одной строкой (сами позиции не меняем — снял галочку, разложились обратно)
+        if(isAct()&&window.__mkMerge()){var G={},GO=[];var norm=function(t){return String(t||'').replace(/\s*L\s*=\s*[\d.,]+\s*м(?![а-яё])/i,'').replace(/\s*мм(?![а-яё])/,'').replace(/\s+/g,' ').trim();};
+          document.querySelectorAll('#ilist .irow').forEach(function(row){var b=row.querySelector('.ibtn[onclick^="openEdit("]');if(!b)return;var it=items3[parseInt(b.getAttribute('onclick').replace(/[^0-9]+/g,''))];if(!it)return;
+            var k=[(it.sys||'').trim().toUpperCase(),it.t,it.th||'',norm(it.desc),it.unit||'',(it.iso&&(it.ia||0)>0)?(it.imt||'')+'|'+(it.ith||''):'',it.comp?it.comp.kind+'|'+(it.comp.mat||'')+'|'+(it.comp.th||it.comp.d||''):''].join('\u0001');
+            if(!G[k]){G[k]=[];GO.push(k);}G[k].push({row:row,it:it});});
+          GO.forEach(function(k){var g=G[k];if(g.length<2)return;var first=g[0].row;var mt=0,qty=0,lin=0;g.forEach(function(x){mt+=(x.it.mt||0);qty+=(+x.it.qty||0);lin+=(+x.it.lin||0);});
+            var ar=first.querySelector('.irow-ar');if(ar)ar.textContent=mt>0?(mt.toFixed(2)+' м²'):((Math.round(qty*1000)/1000)+' '+(g[0].it.unit||'шт'));
+            var ds1=first.querySelector('.irow-ds');if(ds1){var dd=[];if(g[0].it.t===0&&lin>0)dd.push((Math.round(lin*100)/100)+' м.п.');if(g[0].it.th)dd.push('сталь '+String(g[0].it.th).replace('.',',')+' мм');ds1.textContent=dd.join('; ');ds1.style.display=dd.length?'':'none';}
+            var nm=first.querySelector('.irow-nm');if(nm&&!nm.querySelector('.mk-xn')){var xn=document.createElement('span');xn.className='mk-cbdg mk-xn';xn.title='Сложено позиций: '+g.length;xn.textContent='×'+g.length;nm.appendChild(xn);}
+            var ids=g.map(function(x){return String(x.it.id);});
+            var ed=first.querySelector('.ibtn[onclick^="openEdit("]');if(ed)ed.style.display='none';var cp=first.querySelector('.mk-cp');if(cp)cp.style.display='none';
+            var del=first.querySelector('.ibtn.del');if(del){del.removeAttribute('onclick');del.title='Удалить все сложенные';del.addEventListener('click',function(){window.mkDelGroup(ids);});}
+            var cb=first.querySelector('.mk-sel');if(cb){var ncb=cb.cloneNode(true);cb.parentNode.replaceChild(ncb,cb);ncb.checked=ids.every(function(id){return !!SEL.ids[id];});ncb.addEventListener('change',function(){ids.forEach(function(id){if(ncb.checked)SEL.ids[id]=true;else delete SEL.ids[id];});first.classList.toggle('mk-on',ncb.checked);selUpd();});}
+            for(var i=1;i<g.length;i++)g[i].row.style.display='none';});}
+        document.querySelectorAll('#ilist .irow .irow-btns').forEach(function(bt){if(bt.querySelector('.mk-cp'))return;var b=bt.querySelector('.ibtn[onclick^="openEdit("]');if(!b)return;var idx=parseInt(b.getAttribute('onclick').replace(/[^0-9]+/g,''));var cp=H('<button class="ibtn mk-cp" title="Скопировать позицию в систему, указанную в поле «Система»">⧉</button>');cp.addEventListener('click',function(){window.mkCopyRow(idx);});bt.insertBefore(cp,b);});
+        if(isAct())document.querySelectorAll('#ilist .mk-syshdr').forEach(function(h){if(h.querySelector('.mk-syscp'))return;var sp=h.querySelector('span');var name=sp?sp.textContent:'';
+          var b=H('<button class="ibtn mk-syscp" title="Скопировать все позиции этой системы в другую">Копировать в…</button>');
+          var form=H('<div class="mk-syscp-form"><input type="text" placeholder="в какую систему, напр. П2"><button class="ibtn">Вставить</button><button class="ibtn">×</button></div>');
+          var go=function(){var inp=form.querySelector('input');var n=window.mkCopySys(name,inp.value);if(!n)inp.focus();};
+          b.addEventListener('click',function(){form.classList.toggle('on');if(form.classList.contains('on'))form.querySelector('input').focus();});
+          form.querySelectorAll('button')[0].addEventListener('click',go);
+          form.querySelectorAll('button')[1].addEventListener('click',function(){form.classList.remove('on');});
+          form.querySelector('input').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();go();}});
+          h.appendChild(b);h.parentNode.insertBefore(form,h.nextSibling);});
+      }catch(e){}
+      return r;};}
+    upd();
+  })();
   try{document.body.classList.add('mk-act');window.mkActInit();}catch(e){}
   post({mk:'ready'});
 })();
