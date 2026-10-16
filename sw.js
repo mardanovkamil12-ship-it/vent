@@ -1,4 +1,4 @@
-var CACHE_NAME = 'vent-v1';
+var CACHE_NAME = 'vent-v2';
 var URLS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', function(e) {
