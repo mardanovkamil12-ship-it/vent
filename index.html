@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Вентиляция">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="vent-build" content="20261022-130429">
+<meta name="vent-build" content="20261022-135058">
 
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -2974,7 +2974,7 @@ if('serviceWorker' in navigator){
   var sheet=function(html){var sc=document.getElementById('mk-sheet');if(!sc){sc=document.createElement('div');sc.id='mk-sheet';sc.className='mk-sheet';sc.addEventListener('click',function(e){if(e.target===sc)sc.classList.remove('on');});document.body.appendChild(sc);}
     sc.innerHTML='<div class="mk-sheet-b">'+html+'</div>';sc.classList.add('on');return sc;};
   var closeSheet=function(){var sc=document.getElementById('mk-sheet');if(sc)sc.classList.remove('on');};
-  var loginSheet=function(then){var sc=sheet('<h3>Вход в дашборд</h3><p>Те же логин и PIN, что на сайте crm.mk-eng.ru. Нужно один раз — дальше черновики будут сохраняться на сервер сами.</p><input id="mk-l" placeholder="логин" autocomplete="username" autocapitalize="off"><input id="mk-p" placeholder="PIN" type="password" inputmode="numeric" autocomplete="current-password"><div id="mk-lerr" class="mk-sync" style="color:var(--dn)"></div><button class="bact pr" id="mk-lgo">Войти</button><button class="bact" id="mk-lx">Отмена</button>');
+  var loginSheet=function(then){var sc=sheet('<h3>Вход в дашборд</h3><p>Те же логин и PIN, что на сайте crm.mk-eng.ru. Нужно один раз — дальше черновики будут сохраняться на сервер сами.</p><input id="mk-l" placeholder="логин" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"><input id="mk-p" placeholder="PIN (как на сайте)" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"><div id="mk-lerr" class="mk-sync" style="color:var(--dn)"></div><button class="bact pr" id="mk-lgo">Войти</button><button class="bact" id="mk-lx">Отмена</button>');
     sc.querySelector('#mk-lx').addEventListener('click',closeSheet);
     sc.querySelector('#mk-lgo').addEventListener('click',function(){var l=sc.querySelector('#mk-l').value.trim(),p=sc.querySelector('#mk-p').value.trim(),er=sc.querySelector('#mk-lerr');if(!l||!p){er.textContent='Введите логин и PIN';return;}er.textContent='Проверяю…';
       fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:l,pin:p})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
