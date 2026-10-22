@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Вентиляция">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="vent-build" content="20261022-135058">
+<meta name="vent-build" content="20261022-140929">
 
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -3053,7 +3053,15 @@ function actRuleLines(a){
     order.forEach(u=>{out.push({label:r.label+(order.length>1?' ('+u+')':''),qty:R(M[u].qty),unit:u,lin:R(M[u].lin),m2:R(M[u].m2),rule:r.id});});});
   return out;
 }
-function actTotalsLines(a){return actSubtotals(a.positions).concat(actRuleLines(a));}
+function actTotalsLines(a){
+  const sub=actSubtotals(a.positions);const VF='Воздуховоды и фасонные элементы';const R=x=>Math.round(x*1000)/1000;
+  const metal=sub.filter(t=>t.label===VF||t.label.indexOf(VF+',')===0),iso=sub.filter(t=>/^В изоляции /.test(t.label)),rest=sub.filter(t=>metal.indexOf(t)<0&&iso.indexOf(t)<0);
+  const sum=(arr,label)=>({label,qty:0,unit:'',lin:R(arr.reduce((s,t)=>s+(+t.lin||0),0)),m2:R(arr.reduce((s,t)=>s+(+t.m2||0),0)),total:true});
+  const out=[];
+  if(metal.length>1)out.push(sum(metal,VF+' — всего'));out.push(...metal);
+  if(iso.length>1)out.push(sum(iso,'В изоляции — всего'));out.push(...iso);
+  return out.concat(rest,actRuleLines(a));
+}
 function actShowTotals(a){const t=actBySys(a.positions);return t.length>1||(t[0]&&t[0].systems.length>1)||(a.sumRules||[]).length>0;}
 function actExModel(a){
   const noTxt=String(a.no||'').trim(), per=actPeriod(a);

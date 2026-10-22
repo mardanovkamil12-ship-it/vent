@@ -1,4 +1,4 @@
-var CACHE_NAME = 'vent-v36';
+var CACHE_NAME = 'vent-v37';
 var URLS = ['./', './index.html', './manifest.json', './exceljs.min.js'];
 
 self.addEventListener('install', function(e) {
