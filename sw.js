@@ -1,5 +1,5 @@
-var CACHE_NAME = 'vent-v30';
-var URLS = ['./', './index.html', './manifest.json'];
+var CACHE_NAME = 'vent-v35';
+var URLS = ['./', './index.html', './manifest.json', './exceljs.min.js'];
 
 self.addEventListener('install', function(e) {
   e.waitUntil(
@@ -23,6 +23,8 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
+  // чужие адреса (сервер дашборда) и не-GET — не трогаем
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     // страница и сам воркер — всегда из сети мимо HTTP-кэша (GitHub Pages держит 10 мин), иначе телефон долго видит старую версию
     fetch(e.request, (e.request.mode === 'navigate' || /\/(index\.html|sw\.js)?(\?.*)?$/.test(new URL(e.request.url).pathname + (new URL(e.request.url).search))) ? {cache: 'no-store'} : undefined).then(function(response) {

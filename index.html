@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Вентиляция">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="vent-build" content="20261016-182119">
+<meta name="vent-build" content="20261022-130429">
 
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -255,6 +255,8 @@ body.mk-act .mk-th .mtog{margin:0 0 6px;}
 /* акт: Техника / Инструмент / СИЗ не нужны */
 body.mk-act .ttile[data-t="12"],body.mk-act .ttile[data-t="13"],body.mk-act .ttile[data-t="14"]{display:none;}
 #oi-kindrow{display:none;}
+#dlin-row{display:none;}
+body.mk-act #dlin-row{display:block;}
 body.mk-act #oi-kindrow.on{display:grid;}
 /* инструменты списка: отмена/повтор, «складывать одинаковые», копирование */
 .mk-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto;margin-right:8px;}
@@ -2302,7 +2304,7 @@ function expCSV(){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-function expDash(){
+window.__expDashFile=function(){
   var items=ci();if(!items.length){alert('Заявка пуста');return;}
   var o=curObj();
   var g=groupForReport(items);
@@ -2612,6 +2614,7 @@ if('serviceWorker' in navigator){
       return positions;
     }catch(e){return [];}
   }
+  window.mkCollectPublic=function(){return mkCollect();};   // телефонному приложению — собрать позиции как для акта/заявки
   function post(m){try{window.parent.postMessage(m,'*');}catch(e){}}
   function applyTheme(t){try{document.body.setAttribute('data-mktheme', t==='dark'?'dark':'light');}catch(e){}}
   window.addEventListener('message',function(e){
@@ -2927,9 +2930,233 @@ if('serviceWorker' in navigator){
   post({mk:'ready'});
 })();
 </script>
+<style>
+.mk-mode{display:flex;gap:6px;margin:0 0 8px;}
+.mk-mode button{flex:1;padding:9px 8px;border:0.5px solid var(--br2);border-radius:var(--rs);background:var(--sf);color:var(--tx2);font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+.mk-mode button.on{background:var(--ac);color:var(--at);border-color:var(--ac);}
+.mk-acc{font-size:12px;color:var(--tx3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.mk-acc b{color:var(--tx2);font-weight:600;}
+.mk-acc button{padding:4px 9px;font-size:12px;border:0.5px solid var(--br2);border-radius:6px;background:var(--sf);color:var(--tx2);font:inherit;cursor:pointer;}
+.mk-sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:950;display:none;align-items:flex-end;justify-content:center;}
+.mk-sheet.on{display:flex;}
+.mk-sheet .mk-sheet-b{background:var(--sf);color:var(--tx);width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.25);}
+.mk-sheet h3{margin:0 0 4px;font-size:16px;}
+.mk-sheet p{margin:0 0 12px;font-size:13px;color:var(--tx2);line-height:1.4;}
+.mk-sheet .bact{width:100%;margin-bottom:8px;}
+.mk-sheet input{width:100%;padding:10px;border:0.5px solid var(--br2);border-radius:var(--rs);background:var(--sf);color:var(--tx);font:inherit;font-size:15px;margin-bottom:8px;box-sizing:border-box;}
+.mk-sync{font-size:11px;color:var(--tx3);margin-top:4px;min-height:14px;}
+</style><script>
+/* СВЯЗЬ С ДАШБОРДОМ: вид работы (заявка / объёмы), вход тем же логином и PIN, автосохранение черновика на сервер
+   по каждому изменению, «Отправить» — пометить готовым. Офис видит в разделах «Заявки» / «Создание актов» → «С телефона». */
+(function(){
+  var API='https://crm.mk-eng.ru';
+  var H=function(h){var d=document.createElement('div');d.innerHTML=h;return d.firstChild;};
+  var LS=function(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){return null;}};
+  var auth=function(){try{return JSON.parse(LS('vent_auth')||'null');}catch(e){return null;}};
+  // ---- вид работы ----
+  var mode=function(){return S.mode==='request'?'request':'act';};
+  var setMode=function(m,silent){S.mode=(m==='request'?'request':'act');document.body.classList.toggle('mk-act',S.mode==='act');
+    var st=document.getElementById('asub3');if(st)st.textContent=S.mode==='act'?'Оборудование':'Прочее';
+    document.querySelectorAll('.mk-mode button').forEach(function(b){b.classList.toggle('on',b.dataset.m===S.mode);});
+    try{sv();rl();}catch(e){}if(!silent)schedule();};
+  var hdr=document.querySelector('.hdr');
+  if(hdr&&!document.querySelector('.mk-mode')){
+    var mm=H('<div class="mk-mode"><button type="button" data-m="request">Заявка на комплектацию</button><button type="button" data-m="act">Объёмы выполненных работ</button></div>');
+    hdr.insertBefore(mm,hdr.querySelector('.hrow'));
+    mm.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){setMode(b.dataset.m);});});
+    var acc=H('<div class="mk-acc" id="mk-acc"></div>');hdr.appendChild(acc);
+  }
+  var renderAcc=function(){var a=auth(),el=document.getElementById('mk-acc');if(!el)return;
+    el.innerHTML=a?('<span>Дашборд: <b>'+(a.name||a.login)+'</b></span><span id="mk-sync" class="mk-sync"></span><button type="button" id="mk-logout">Выйти</button>'):('<span>Связь с дашбордом не настроена</span><button type="button" id="mk-login">Войти</button>');
+    var lo=document.getElementById('mk-logout');if(lo)lo.addEventListener('click',function(){LS('vent_auth',null);renderAcc();});
+    var li=document.getElementById('mk-login');if(li)li.addEventListener('click',function(){loginSheet();});};
+  // ---- листы (вход / отправка) ----
+  var sheet=function(html){var sc=document.getElementById('mk-sheet');if(!sc){sc=document.createElement('div');sc.id='mk-sheet';sc.className='mk-sheet';sc.addEventListener('click',function(e){if(e.target===sc)sc.classList.remove('on');});document.body.appendChild(sc);}
+    sc.innerHTML='<div class="mk-sheet-b">'+html+'</div>';sc.classList.add('on');return sc;};
+  var closeSheet=function(){var sc=document.getElementById('mk-sheet');if(sc)sc.classList.remove('on');};
+  var loginSheet=function(then){var sc=sheet('<h3>Вход в дашборд</h3><p>Те же логин и PIN, что на сайте crm.mk-eng.ru. Нужно один раз — дальше черновики будут сохраняться на сервер сами.</p><input id="mk-l" placeholder="логин" autocomplete="username" autocapitalize="off"><input id="mk-p" placeholder="PIN" type="password" inputmode="numeric" autocomplete="current-password"><div id="mk-lerr" class="mk-sync" style="color:var(--dn)"></div><button class="bact pr" id="mk-lgo">Войти</button><button class="bact" id="mk-lx">Отмена</button>');
+    sc.querySelector('#mk-lx').addEventListener('click',closeSheet);
+    sc.querySelector('#mk-lgo').addEventListener('click',function(){var l=sc.querySelector('#mk-l').value.trim(),p=sc.querySelector('#mk-p').value.trim(),er=sc.querySelector('#mk-lerr');if(!l||!p){er.textContent='Введите логин и PIN';return;}er.textContent='Проверяю…';
+      fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login:l,pin:p})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
+      .then(function(j){LS('vent_auth',JSON.stringify({token:j.token,name:(j.user&&(j.user.n||j.user.fio))||l,login:l}));closeSheet();renderAcc();schedule(true);if(then)then();})
+      .catch(function(e){er.textContent=e.message||'Не удалось войти';});});};
+  // ---- данные для сервера ----
+  var cid=function(){var o=curObj();if(!o.cid){o.cid='ph_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);sv();}return o.cid;};
+  var payload=function(status){var o=curObj();var pos=[];try{pos=window.mkCollectPublic?window.mkCollectPublic():[];}catch(e){}
+    return {clientId:cid(),kind:mode(),status:status,object:on(),engineer:o.eng||'',date:o.date||'',srok:(document.getElementById('z-srok')||{}).value||o.srok||'',count:pos.length,positions:pos,state:S,build:(document.querySelector('meta[name="vent-build"]')||{}).content||''};};
+  var lastSig='',timer=null,busy=false,pending=false;
+  var setSync=function(t,bad){var el=document.getElementById('mk-sync');if(el){el.textContent=t||'';el.style.color=bad?'var(--dn)':'';}};
+  var upload=function(status,cb){var a=auth();if(!a){if(cb)cb(new Error('Не выполнен вход'));return;}
+    var body=payload(status);var sig=JSON.stringify([body.kind,body.object,body.engineer,body.date,body.srok,body.positions,body.state&&body.state.items]);
+    if(status==='draft'&&sig===lastSig){if(cb)cb(null,{same:true});return;}
+    if(busy){pending=true;if(cb)cb(null,{queued:true});return;}busy=true;setSync('сохраняю…');
+    fetch(API+'/api/phone/drafts',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+a.token},body:JSON.stringify(body)})
+      .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});})
+      .then(function(j){lastSig=sig;busy=false;var o=curObj();o.lastSync=new Date().toISOString();if(status==='sent')o.sentAt=o.lastSync;try{sv();}catch(e){}setSync((status==='sent'?'отправлено ':'сохранено на сервере ')+new Date().toTimeString().slice(0,5));if(pending){pending=false;schedule();}if(cb)cb(null,j);})
+      .catch(function(e){busy=false;var msg=/401|вход|Сессия/i.test(String(e.message))?'нужно войти заново':'нет связи, повторю позже';setSync(msg,true);if(/401|Сессия/i.test(String(e.message)))LS('vent_auth',null),renderAcc();if(cb)cb(e);});};
+  var schedule=function(now){if(!auth())return;clearTimeout(timer);timer=setTimeout(function(){upload('draft');},now?300:2500);};
+  // автосохранение: любое изменение состояния (обёртка sv уже есть у истории — вешаемся поверх)
+  if(typeof sv==='function'){var _sv=window.sv;window.sv=function(){var r=_sv.apply(this,arguments);try{schedule();}catch(e){}return r;};}
+  window.addEventListener('online',function(){schedule(true);});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'){clearTimeout(timer);upload('draft');}else schedule(true);});
+  // ---- отправить ----
+  window.expDash=function(){var items=ci();if(!items.length){alert('Список пуст — нечего отправлять.');return;}
+    var go=function(kind){closeSheet();setMode(kind,true);var send=function(){upload('sent',function(e){if(e){alert('Не удалось отправить: '+e.message);return;}
+        var sc=sheet('<h3>Отправлено в дашборд</h3><p>'+(kind==='request'?'Заявка появится на сайте в разделе «Заявки» → «С телефона». ':'Объёмы появятся на сайте в разделе «Создание актов» → «С телефона». ')+'Офис откроет их в конструкторе и продолжит на компьютере. На телефоне всё остаётся.</p><button class="bact pr" id="mk-ok">Понятно</button>');sc.querySelector('#mk-ok').addEventListener('click',closeSheet);});};
+      if(!auth())loginSheet(send);else send();};
+    var sc=sheet('<h3>Что отправить в дашборд?</h3><p>Объект: <b>'+(on()||'без названия')+'</b> · позиций: '+items.length+'</p><button class="bact pr" id="mk-s-act">Объёмы выполненных работ (для акта)</button><button class="bact pr" id="mk-s-req">Заявку на комплектацию</button><button class="bact" id="mk-s-file">Сохранить файлом (как раньше)</button><button class="bact" id="mk-s-x">Отмена</button>');
+    sc.querySelector('#mk-s-act').addEventListener('click',function(){go('act');});sc.querySelector('#mk-s-req').addEventListener('click',function(){go('request');});
+    sc.querySelector('#mk-s-file').addEventListener('click',function(){closeSheet();if(window.__expDashFile)window.__expDashFile();});sc.querySelector('#mk-s-x').addEventListener('click',closeSheet);};
+  // старт
+  setMode(S.mode||'act',true);renderAcc();
+  var db=document.querySelector('button[onclick="expDash()"]');if(db)db.textContent='📤 Отправить в дашборд';
+  if(auth())setTimeout(function(){schedule(true);},1500);
+})();
+</script>
+<script>
+(function(){
+var LOGO_DARKTXT="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcKdmVyc2lvbj0iMS4xIgppZD0ic3ZnMSIKd2lkdGg9IjE1My40MDY2OCIKaGVpZ2h0PSI2My40MDgyNjgiCnZpZXdCb3g9IjAgMCAxNTMuNDA2NjggNjMuNDA4MjY4Igpzb2RpcG9kaTpkb2NuYW1lPSLQvNC6X9C40L3QttC40L3QuNGA0LjQvdCzX9C70L7Qs9C+LmFpIgp4bWxuczppbmtzY2FwZT0iaHR0cDovL3d3dy5pbmtzY2FwZS5vcmcvbmFtZXNwYWNlcy9pbmtzY2FwZSIKeG1sbnM6c29kaXBvZGk9Imh0dHA6Ly9zb2RpcG9kaS5zb3VyY2Vmb3JnZS5uZXQvRFREL3NvZGlwb2RpLTAuZHRkIgp4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIKeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgp4bWxuczpzdmc9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGRlZnMKaWQ9ImRlZnMxIj4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgxMCI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTc2LjkyMTg5OSwtMTcuNzc4MykiCmlkPSJwYXRoMTAiIC8+CjwvY2xpcFBhdGg+CjxjbGlwUGF0aApjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKaWQ9ImNsaXBQYXRoMTIiPgo8cGF0aApkPSJNIDAsNDcuNTU2IEggMTE1LjA1NSBWIDAgSCAwIFoiCnRyYW5zZm9ybT0idHJhbnNsYXRlKC04Ni45MTUwMDUsLTIuMDAwMDAwMSkiCmlkPSJwYXRoMTIiIC8+CjwvY2xpcFBhdGg+CjxjbGlwUGF0aApjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKaWQ9ImNsaXBQYXRoMTQiPgo8cGF0aApkPSJNIDAsNDcuNTU2IEggMTE1LjA1NSBWIDAgSCAwIFoiCnRyYW5zZm9ybT0idHJhbnNsYXRlKC05OC4wNjQ1MDUsLTIuMDAwMDAwMSkiCmlkPSJwYXRoMTQiIC8+CjwvY2xpcFBhdGg+CjxjbGlwUGF0aApjbGlwUGF0aFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIKaWQ9ImNsaXBQYXRoMTYiPgo8cGF0aApkPSJNIDAsNDcuNTU2IEggMTE1LjA1NSBWIDAgSCAwIFoiCnRyYW5zZm9ybT0idHJhbnNsYXRlKC0xMDYuNDI3NywtMi4wMDAwMDAxKSIKaWQ9InBhdGgxNiIgLz4KPC9jbGlwUGF0aD4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgxOCI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTM1LjE1MTgwMSwtMzcuNTAzNjAxKSIKaWQ9InBhdGgxOCIgLz4KPC9jbGlwUGF0aD4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgyMCI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKaWQ9InBhdGgyMCIgLz4KPC9jbGlwUGF0aD4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgyMiI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTM1LjE1MTgwMSwtMzIuNTAzNjAxKSIKaWQ9InBhdGgyMiIgLz4KPC9jbGlwUGF0aD4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgyNCI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKaWQ9InBhdGgyNCIgLz4KPC9jbGlwUGF0aD4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgyNiI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTM1LjE1MTgwMSwtNDIuNTAzNjAxKSIKaWQ9InBhdGgyNiIgLz4KPC9jbGlwUGF0aD4KPGNsaXBQYXRoCmNsaXBQYXRoVW5pdHM9InVzZXJTcGFjZU9uVXNlIgppZD0iY2xpcFBhdGgyOCI+CjxwYXRoCmQ9Ik0gMCw0Ny41NTYgSCAxMTUuMDU1IFYgMCBIIDAgWiIKaWQ9InBhdGgyOCIgLz4KPC9jbGlwUGF0aD4KPC9kZWZzPgo8c29kaXBvZGk6bmFtZWR2aWV3CmlkPSJuYW1lZHZpZXcxIgpwYWdlY29sb3I9IiNmZmZmZmYiCmJvcmRlcmNvbG9yPSIjMDAwMDAwIgpib3JkZXJvcGFjaXR5PSIwLjI1IgppbmtzY2FwZTpzaG93cGFnZXNoYWRvdz0iMiIKaW5rc2NhcGU6cGFnZW9wYWNpdHk9IjAuMCIKaW5rc2NhcGU6cGFnZWNoZWNrZXJib2FyZD0iMCIKaW5rc2NhcGU6ZGVza2NvbG9yPSIjZDFkMWQxIj4KPGlua3NjYXBlOnBhZ2UKeD0iMCIKeT0iMCIKaW5rc2NhcGU6bGFiZWw9IjEiCmlkPSJwYWdlMSIKd2lkdGg9IjE1My40MDY2OCIKaGVpZ2h0PSI2My40MDgyNjgiCm1hcmdpbj0iMi42NjY2NjY3IDEuMzMzMzMzNCA0IDEuNzk1NTczNCIKYmxlZWQ9IjAiIC8+Cjwvc29kaXBvZGk6bmFtZWR2aWV3Pgo8ZwppZD0ibGF5ZXItTUMwIgppbmtzY2FwZTpncm91cG1vZGU9ImxheWVyIgppbmtzY2FwZTpsYWJlbD0iTGF5ZXIgMSI+CjxwYXRoCmlkPSJwYXRoMSIKZD0iTSAwLDAgMS45NzIsMTMuMDcgSCA1Ljk5NiBWIC01LjMzOCBIIDMuMjYxIFYgNy44NjMgTCAxLjI2MiwtNS4zMzggSCAtMS40NzMgTCAtMy42Myw3LjY3OSBWIC01LjMzOCBIIC02LjE1NCBWIDEzLjA3IGggNC4wMjMgeiIKc3R5bGU9ImZpbGw6IzIzMWYyMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDEwLjAwMTMzMywyMS40MjcyKSIgLz4KPHBhdGgKaWQ9InBhdGgyIgpkPSJtIDAsMCAtMC44OTUsLTEuNjgzIHYgLTUuNjU0IGggLTIuODkyIHYgMTguNDA4IGggMi44OTIgViAzLjA1IGwgMy43ODgsOC4wMjEgSCA1Ljc4NSBMIDEuNzYyLDIuODY2IDUuNzg1LC03LjMzNyBIIDIuODEzIFoiCnN0eWxlPSJmaWxsOiMyMzFmMjA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMywyNS44NDg5MzMsMTguNzYxNzMzKSIgLz4KPHBhdGgKaWQ9InBhdGgzIgpkPSJtIDAsMCBoIC0yLjk3MiB2IDE4LjQwOSBoIDIuNTc3IFYgNi43NTkgbCAxLjA1Miw0LjA1IDIuMzY3LDcuNiBIIDYuMjA3IFYgMCBIIDMuNjA0IFYgMTIuOTY1IEwgMi40Miw4LjQ0MiBaIgpzdHlsZT0iZmlsbDojMjMxZjIwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpub256ZXJvO3N0cm9rZTpub25lIgp0cmFuc2Zvcm09Im1hdHJpeCgxLjMzMzMzMzMsMCwwLC0xLjMzMzMzMzMsNi42Mjg5MzMzLDYwLjc0MTYpIiAvPgo8cGF0aAppZD0icGF0aDQiCmQ9Ik0gMCwwIEggLTIuODkzIFYgMTguNDA5IEggMCBWIDEwLjUyIGggMy4yODggdiA3Ljg4OSBIIDYuMjMzIFYgMCBIIDMuMjg4IFYgNy44OSBIIDAgWiIKc3R5bGU9ImZpbGw6IzIzMWYyMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDIxLjQ5NDgsNjAuNzQxNikiIC8+CjxwYXRoCmlkPSJwYXRoNSIKZD0iTSAwLDAgMy40MTksNy40NDMgSCA2LjMxMiBMIDIuNzYxLC0wLjAyNSA2LjMxMiwtMTAuOTY2IEggMy4zNCBMIDAuNzEsLTIuODEzIDAsLTQuMjA3IHYgLTYuNzU5IGggLTIuODY3IHYgNi43NTkgbCAtMC43MSwxLjQyIC0yLjYzLC04LjE3OSBoIC0yLjk3MiBsIDMuNTc3LDEwLjg2MiAtMy41NzcsNy41NDcgaCAyLjg5NCBMIC0yLjg2NywwIHYgNy40NDMgbCAyLjg2NywwIHoiCnN0eWxlPSJmaWxsOiMyMzFmMjA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMyw0My43MjY1MzMsNDYuMTIwNTMzKSIgLz4KPHBhdGgKaWQ9InBhdGg2IgpkPSJtIDAsMCBoIC0yLjk3MiB2IDE4LjQwOSBoIDIuNTc3IFYgNi43NTkgbCAxLjA1Miw0LjA1IDIuMzY3LDcuNiBIIDYuMjA3IFYgMCBIIDMuNjA0IFYgMTIuOTY1IEwgMi40Miw4LjQ0MiBaIgpzdHlsZT0iZmlsbDojMjMxZjIwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpub256ZXJvO3N0cm9rZTpub25lIgp0cmFuc2Zvcm09Im1hdHJpeCgxLjMzMzMzMzMsMCwwLC0xLjMzMzMzMzMsNTcuNzUxMzMzLDYwLjc0MTYpIiAvPgo8cGF0aAppZD0icGF0aDciCmQ9Ik0gMCwwIEggLTIuODkzIFYgMTguNDA5IEggMCBWIDEwLjUyIGggMy4yODggdiA3Ljg4OSBIIDYuMjMzIFYgMCBIIDMuMjg4IFYgNy44OSBIIDAgWiIKc3R5bGU9ImZpbGw6IzIzMWYyMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDcyLjYxODUzMyw2MC43NDE2KSIgLz4KPHBhdGgKaWQ9InBhdGg4IgpkPSJtIDAsMCBoIC0yLjk3MiB2IDE4LjQwOSBoIDIuNTc3IFYgNi43NTkgbCAxLjA1Miw0LjA1IDIuMzY3LDcuNiBIIDYuMjA3IFYgMCBIIDMuNjA0IFYgMTIuOTY1IEwgMi40Miw4LjQ0MiBaIgpzdHlsZT0iZmlsbDojMjMxZjIwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpub256ZXJvO3N0cm9rZTpub25lIgp0cmFuc2Zvcm09Im1hdHJpeCgxLjMzMzMzMzMsMCwwLC0xLjMzMzMzMzMsODcuNjk1MzMzLDYwLjc0MTYpIiAvPgo8cGF0aAppZD0icGF0aDkiCmQ9Im0gMCwwIHYgLTYuMjMyIGggMS4zNjggYyAwLjQ1NSwwIDAuODA2LDAuMTIzIDEuMDUyLDAuMzY5IDAuMjQ1LDAuMjQ0IDAuMzY4LDAuNyAwLjM2OCwxLjM2NyB2IDIuNzYyIGMgMCwwLjY2NiAtMC4xMjMsMS4xMjEgLTAuMzY4LDEuMzY3IEMgMi4xNzQsLTAuMTIyIDEuODIzLDAgMS4zNjgsMCBaIG0gMS4zNjgsMi42MzEgYyAxLjQ1NSwwIDIuNTM3LC0wLjM4NyAzLjI0OCwtMS4xNTggMC43MSwtMC43NzIgMS4wNjUsLTEuOTAzIDEuMDY1LC0zLjM5MiBWIC00LjMxMiBDIDUuNjgxLC01LjgwMyA1LjMyNiwtNi45MzQgNC42MTYsLTcuNzA1IDMuOTA1LC04LjQ3NyAyLjgyMywtOC44NjEgMS4zNjgsLTguODYxIEggMCB2IC02LjkxNyBIIC0yLjg5MyBWIDIuNjMxIFoiCnN0eWxlPSJmaWxsOiMyMzFmMjA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMywxMDIuNTYyNTMsMzkuNzAzODY3KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMTApIiAvPgo8cGF0aAppZD0icGF0aDExIgpkPSJtIDAsMCBoIC0yLjk3MiB2IDE4LjQwOSBoIDIuNTc3IFYgNi43NTkgbCAxLjA1Miw0LjA1IDIuMzY3LDcuNiBIIDYuMjA3IFYgMCBIIDMuNjA0IFYgMTIuOTY1IEwgMi40Miw4LjQ0MiBaIgpzdHlsZT0iZmlsbDojMjMxZjIwO2ZpbGwtb3BhY2l0eToxO2ZpbGwtcnVsZTpub256ZXJvO3N0cm9rZTpub25lIgp0cmFuc2Zvcm09Im1hdHJpeCgxLjMzMzMzMzMsMCwwLC0xLjMzMzMzMzMsMTE1Ljg4NjY3LDYwLjc0MTYpIgpjbGlwLXBhdGg9InVybCgjY2xpcFBhdGgxMikiIC8+CjxwYXRoCmlkPSJwYXRoMTMiCmQ9Ik0gMCwwIEggLTIuODkzIFYgMTguNDA5IEggMCBWIDEwLjUyIGggMy4yODggdiA3Ljg4OSBIIDYuMjMzIFYgMCBIIDMuMjg4IFYgNy44OSBIIDAgWiIKc3R5bGU9ImZpbGw6IzIzMWYyMDtmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDEzMC43NTI2Nyw2MC43NDE2KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMTQpIiAvPgo8cGF0aAppZD0icGF0aDE1IgpkPSJNIDAsMCBWIDE4LjQwOSBIIDcuNjI3IFYgMTUuNzc4IEggMi44OTMgViAwIFoiCnN0eWxlPSJmaWxsOiMyMzFmMjA7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMywxNDEuOTAzNiw2MC43NDE2KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMTYpIiAvPgo8cGF0aAppZD0icGF0aDE3IgpkPSJtIDAsMCBjIC0zLjQzNSwyLjY2NSAtNi4wMTEsMS43NzYgLTYuMDExLDEuNzc2IHYgLTMuNTUyIGMgMCwwIDIuNTc2LDAuODg4IDYuMDExLC0xLjc3NyAzLjQzNSwtMi42NjQgMy4xMDksLTMuMjM0IDYuNDI1LC0zLjIzNCB2IDMuNDgyIEMgMy44NDksLTMuMzA1IDMuNDM1LC0yLjY2NSAwLDAiCnN0eWxlPSJmaWxsOiNmMjYxMmE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMyw0Ni44NjkwNjcsMTMuNDAzNDY3KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMTgpIiAvPgo8cGF0aAppZD0icGF0aDE5IgpkPSJNIDUzLjc3LDMwLjcxNyBIIDQxLjMzNCB2IDMuNDgyIEggNTMuNzcgWiIKc3R5bGU9ImZpbGw6IzIyNDQ5NztmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDAsNjMuNDA4MjY3KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMjApIiAvPgo8cGF0aAppZD0icGF0aDIxIgpkPSJtIDAsMCBjIC0zLjQzNSwyLjY2NSAtNi4wMTEsMS43NzYgLTYuMDExLDEuNzc2IHYgLTMuNTUyIGMgMCwwIDIuNTc2LDAuODg4IDYuMDExLC0xLjc3NyAzLjQzNSwtMi42NjQgMy4xMDksLTMuMjM0IDYuNDI1LC0zLjIzNCB2IDMuNDgyIEMgMy44NDksLTMuMzA1IDMuNDM1LC0yLjY2NSAwLDAiCnN0eWxlPSJmaWxsOiNmMjYxMmE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMyw0Ni44NjkwNjcsMjAuMDcwMTMzKSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMjIpIiAvPgo8cGF0aAppZD0icGF0aDIzIgpkPSJNIDUzLjc3LDI1LjcxNyBIIDQxLjMzNCB2IDMuNDgyIEggNTMuNzcgWiIKc3R5bGU9ImZpbGw6IzIyNDQ5NztmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDAsNjMuNDA4MjY3KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMjQpIiAvPgo8cGF0aAppZD0icGF0aDI1IgpkPSJtIDAsMCBjIC0zLjQzNSwyLjY2NSAtNi4wMTEsMS43NzYgLTYuMDExLDEuNzc2IHYgLTMuNTUyIGMgMCwwIDIuNTc2LDAuODg4IDYuMDExLC0xLjc3NyAzLjQzNSwtMi42NjQgMy4xMDksLTMuMjM0IDYuNDI1LC0zLjIzNCB2IDMuNDgyIEMgMy44NDksLTMuMzA1IDMuNDM1LC0yLjY2NSAwLDAiCnN0eWxlPSJmaWxsOiNmMjYxMmE7ZmlsbC1vcGFjaXR5OjE7ZmlsbC1ydWxlOm5vbnplcm87c3Ryb2tlOm5vbmUiCnRyYW5zZm9ybT0ibWF0cml4KDEuMzMzMzMzMywwLDAsLTEuMzMzMzMzMyw0Ni44NjkwNjcsNi43MzY4KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMjYpIiAvPgo8cGF0aAppZD0icGF0aDI3IgpkPSJNIDUzLjc3LDM1LjcxNyBIIDQxLjMzNCB2IDMuNDgyIEggNTMuNzcgWiIKc3R5bGU9ImZpbGw6IzIyNDQ5NztmaWxsLW9wYWNpdHk6MTtmaWxsLXJ1bGU6bm9uemVybztzdHJva2U6bm9uZSIKdHJhbnNmb3JtPSJtYXRyaXgoMS4zMzMzMzMzLDAsMCwtMS4zMzMzMzMzLDAsNjMuNDA4MjY3KSIKY2xpcC1wYXRoPSJ1cmwoI2NsaXBQYXRoMjgpIiAvPgo8L2c+Cjwvc3ZnPgo=";
+function actBySys(list){
+  const S={},order=[];
+  (list||[]).forEach(p=>{const sect=p.sect||'Прочее';if(!S[sect]){S[sect]={sys:{},order:[]};order.push(sect);}
+    const kl=(p.sys||'').trim()||'Без системы',k=kl.toUpperCase();const g=S[sect];if(!g.sys[k]){g.sys[k]={label:kl,rows:[]};g.order.push(k);}g.sys[k].rows.push(p);});
+  return order.map(sect=>({name:sect,systems:S[sect].order.map(k=>({name:S[sect].sys[k].label,rows:S[sect].sys[k].rows}))}));
+}
+function actSubBase(sub){return String(sub||'').replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim()||'Позиции';}
+function actPosNorm(p){if(!p)return p;let q=p;if(q.m2==null&&q.unit==='м²'&&q.lin==null)q=Object.assign({},q,{m2:+q.qty||0,qty:null,unit:''});
+  // имя собираем при показе из полей позиции — акты, сохранённые старыми версиями, получают единый формат «…, b - 0,8мм, в изоляции …»
+  if(q.th||q.iso||q.comp){const base=String(q.name||'').split(/,\s*b\s*-|,?\s+в изоляции|,?\s+в гофре/)[0].replace(/\s*δ[\d.,]+/,'').trim();const parts=[base];
+    if(q.th)parts.push('b - '+String(q.th).replace('.',',')+'мм');
+    if(q.iso&&(q.iso.mat||q.iso.th))parts.push('в изоляции '+(q.iso.mat||'')+(q.iso.th?' '+q.iso.th+' мм':''));
+    if(q.comp)parts.push(q.comp.kind==='ti'?'в изоляции '+(q.comp.mat||'')+(q.comp.th?' '+q.comp.th+' мм':''):'в гофре '+(q.comp.mat||'')+(q.comp.d?' Ø'+q.comp.d:''));
+    const nm=parts.map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).join(', ');if(nm!==q.name)q=Object.assign({},q,{name:nm});}
+  return q;}
+function actSubtotals(rows){
+  const M={},order=[];const add=(k,label,qty,unit,lin,m2)=>{if(!M[k]){M[k]={label,qty:0,unit,lin:0,m2:0};order.push(k);}M[k].qty+=(+qty||0);M[k].lin+=(+lin||0);M[k].m2+=(+m2||0);};
+  // железо (воздуховоды + фасонка) — одной строкой в м.п. и м²; затем по строке «в изоляции тип толщина» на каждый вид изоляции
+  const VF='Воздуховоды и фасонные элементы';
+  (rows||[]).map(actPosNorm).forEach(p=>{let b=p.grp||actSubBase(p.sub);if(b==='Воздуховоды'||b==='Фасонные части')b=VF;if(b==='Оборудование'||b==='Прочее'||p.sect==='Оборудование')return; /* оборудование суммируется только по правилам пользователя */ const metal=(+p.m2>0);const thL=(b===VF&&p.th)?', b - '+String(p.th).replace('.',',')+'мм':'';add('m|'+b+'|'+(metal?'':(p.unit||''))+'|'+(p.th||''),b+thL,metal?0:p.qty,metal?'':(p.unit||''),p.lin||0,p.m2||0);
+    if(p.iso&&p.iso.m2>0){const il=(p.iso.mat||'')+(p.iso.th?' '+p.iso.th+' мм':'');add('i|'+b+'|'+p.iso.mat+'|'+p.iso.th,(b===VF?'В изоляции ':b+' в изоляции ')+il,0,'',p.iso.lin||p.lin||0,p.iso.m2);}
+    if(p.comp&&p.comp.qty>0)add('c|'+b+'|'+p.comp.kind+'|'+p.comp.mat+'|'+(p.comp.th||p.comp.d),b+(p.comp.kind==='ti'?' в изоляции '+(p.comp.mat||'')+(p.comp.th?' '+p.comp.th+' мм':''):' в гофре '+(p.comp.mat||'')+(p.comp.d?' Ø'+p.comp.d:'')),p.comp.qty,p.comp.unit||'м',0,0);});
+  const R=x=>Math.round(x*1000)/1000;
+  // порядок: сначала железо/виды, затем строки «в изоляции…», затем спутники (труб. изоляция, гофра)
+  const rank=k=>k[0]==='m'?0:k[0]==='i'?1:2;
+  const thOf=k=>{const m=k.split('|');return (k.startsWith('m|'+VF+'|')&&m[3]!=='')?parseFloat(m[3]):NaN;};
+  return order.map((k,i)=>[k,i]).sort((x,y)=>rank(x[0])-rank(y[0])||((!isNaN(thOf(x[0]))&&!isNaN(thOf(y[0])))?thOf(x[0])-thOf(y[0]):0)||x[1]-y[1]).map(([k])=>({label:M[k].label.replace(/\s+/g,' ').trim(),qty:R(M[k].qty),unit:M[k].unit,lin:R(M[k].lin),m2:R(M[k].m2)}));
+}
+function actLinOf(p){const l=+p.lin||0;if(!l)return 0;if(/^м(\.п\.)?$/.test(String(p.unit||''))&&l===+p.qty)return 0;return l;}
+function actRuleMatch(p,r){const n=String(p.name||'');if(r.names&&r.names.indexOf(n)>=0)return true;const kw=String(r.kw||'').trim().toLowerCase();return !!kw&&n.toLowerCase().indexOf(kw)>=0;}
+function actRuleLines(a){
+  const out=[];(a.sumRules||[]).forEach(r=>{const M={};const order=[];(a.positions||[]).map(actPosNorm).filter(p=>actRuleMatch(p,r)).forEach(p=>{const u=p.unit||(p.m2?'м²':'шт');if(!M[u]){M[u]={qty:0,lin:0,m2:0};order.push(u);}M[u].qty+=(+p.qty||0);M[u].lin+=(+p.lin||0);M[u].m2+=(+p.m2||0);});
+    const R=x=>Math.round(x*1000)/1000;
+    if(!order.length){out.push({label:r.label,qty:0,unit:'',lin:0,m2:0,rule:r.id,empty:true});return;}
+    order.forEach(u=>{out.push({label:r.label+(order.length>1?' ('+u+')':''),qty:R(M[u].qty),unit:u,lin:R(M[u].lin),m2:R(M[u].m2),rule:r.id});});});
+  return out;
+}
+function actTotalsLines(a){return actSubtotals(a.positions).concat(actRuleLines(a));}
+function actShowTotals(a){const t=actBySys(a.positions);return t.length>1||(t[0]&&t[0].systems.length>1)||(a.sumRules||[]).length>0;}
+function actExModel(a){
+  const noTxt=String(a.no||'').trim(), per=actPeriod(a);
+  return {a:a, sects:actBySys(a.positions),
+    title:'Акт выполненных работ'+(noTxt?' № '+noTxt:''),
+    meta:'Объект: '+actObjectName(a)+(a.brigade?'     ·     Бригада: '+a.brigade:'')+'     ·     Дата: '+fmtReqDate(a.date)+(per?'     ·     Период работ: '+per:''),
+    file:'Акт'+(noTxt?'_'+noTxt:'')+'_'+String(actObjectName(a)).replace(/[\\/:*?"<>|«»]+/g,'').trim().replace(/\s+/g,'_')};
+}
+function actBuildXlsx(m,logoB64){
+  const wb=new ExcelJS.Workbook(); wb.creator='МК Инжиниринг';
+  const ws=wb.addWorksheet('Акт',{pageSetup:{orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}}});
+  const N=6, F=(o)=>Object.assign({name:'Times New Roman',size:10,color:{argb:'FF111111'}},o||{});
+  const L={style:'thin',color:{argb:'FFC4CCD8'}}, THIN={top:L,left:L,bottom:L,right:L};
+  ws.columns=[{width:6},{width:64},{width:8},{width:12},{width:11},{width:11}];
+  if(logoB64){try{const imgId=wb.addImage({base64:logoB64,extension:'png'});ws.addImage(imgId,{tl:{col:0,row:0},ext:{width:168,height:69}});}catch(e){}}
+  ws.getRow(1).height=56;
+  ws.mergeCells(2,1,2,N); const t=ws.getCell(2,1); t.value=m.title; t.font={name:'Times New Roman',size:15,bold:true,color:{argb:'FF1A2B4A'}};
+  ws.mergeCells(3,1,3,N); const mc=ws.getCell(3,1); mc.value=m.meta; mc.font={name:'Times New Roman',size:10,color:{argb:'FF666666'}}; mc.alignment={wrapText:true,vertical:'top'}; ws.getRow(3).height=28;
+  let r=4;
+  if(m.a.comment&&m.a.comment.trim()){ws.mergeCells(r,1,r,N);const c=ws.getCell(r,1);c.value='Комментарий: '+m.a.comment.trim();c.font=F();c.alignment={wrapText:true,vertical:'top'};ws.getRow(r).height=Math.min(90,15*Math.ceil((c.value.length+1)/95));r++;}
+  ws.getRow(r).height=6; r++;
+  const HEAD=r, hr=ws.getRow(HEAD);
+  ['№','Наименование','Ед.','Кол-во','м.п.','м²'].forEach((h,i)=>{const c=hr.getCell(i+1);c.value=h;c.font=F({bold:true,color:{argb:'FFFFFFFF'}});c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF224497'}};c.alignment={horizontal:'center',vertical:'middle'};c.border=THIN;});
+  hr.height=20; r++;
+  let n=0;
+  const line=(label,unit,qty,lin,m2,bold,fill)=>{ws.mergeCells(r,1,r,2);const lc=ws.getCell(r,1);lc.value=label;lc.alignment={horizontal:'right',wrapText:true};
+    const uc=ws.getCell(r,3);uc.value=unit;uc.alignment={horizontal:'center'};const qc=ws.getCell(r,4);qc.value=qty||null;qc.numFmt='General';qc.alignment={horizontal:'center'};
+    const pc=ws.getCell(r,5);pc.value=lin||null;pc.numFmt='General';pc.alignment={horizontal:'center'};const sc2=ws.getCell(r,6);sc2.value=m2||null;sc2.numFmt='General';sc2.alignment={horizontal:'center'};
+    [lc,uc,qc,pc,sc2].forEach(c=>{c.font=F({bold:!!bold});c.border=THIN;if(fill)c.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};});r++;};
+  m.sects.forEach(s=>{
+    ws.mergeCells(r,1,r,N); const sc=ws.getCell(r,1); sc.value=s.name; sc.font=F({bold:true}); sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8EEF7'}}; sc.border=THIN; r++;
+    s.systems.forEach(sy=>{
+      ws.mergeCells(r,1,r,N); const yc=ws.getCell(r,1); yc.value=sy.name==='Без системы'?'Без системы':'Система '+sy.name; yc.font=F({bold:true,color:{argb:'FF444444'}}); yc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF5F7FA'}}; yc.border=THIN; r++;
+      sy.rows.map(actPosNorm).forEach(p=>{n++;const row=ws.getRow(r);
+        [n,(p.name||''),p.unit||'',(p.qty!=null&&p.qty!==''?+p.qty:null),(actLinOf(p)||null),(p.m2?+p.m2:null)].forEach((v,i)=>{const c=row.getCell(i+1);c.value=v;c.font=F();c.border=THIN;c.alignment={vertical:'top',horizontal:i===1?'left':'center',wrapText:i===1};if(i===3)c.numFmt='General';if(i>=4)c.numFmt='General';});
+        r++;});
+      actSubtotals(sy.rows).forEach((tt,ti)=>line((ti===0?(sy.name==='Без системы'?'Итого без системы:  ':'Итого по системе '+sy.name+':  '):'')+tt.label,tt.unit,tt.qty,actLinOf(tt),tt.m2,true,'FFFBFCFE'));
+    });
+  });
+  if(actShowTotals(m.a)){
+    ws.mergeCells(r,1,r,N); const tc=ws.getCell(r,1); tc.value='Итого по акту'; tc.font=F({bold:true}); tc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFDDE3EC'}}; tc.border=THIN; r++;
+    actTotalsLines(m.a).filter(t=>!t.empty).forEach(tt=>line(tt.label,tt.unit,tt.qty,actLinOf(tt),tt.m2,true,'FFF1F4F9'));
+  }
+  r+=2;
+  ws.mergeCells(r,1,r,2); ws.getCell(r,1).value='Сдал (бригада): ____________________ / '+(m.a.brigade||''); ws.getCell(r,1).font=F();
+  ws.mergeCells(r,3,r,N); ws.getCell(r,3).value='Принял: ____________________ / ____________________'; ws.getCell(r,3).font=F();
+  ws.views=[{showGridLines:false}];
+  return wb.xlsx.writeBuffer().then(buf=>new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+}
+function actExXlsHtml(m){
+  const td='border:1px solid #999;padding:4px 6px';let rows='',n=0;
+  m.sects.forEach(s=>{
+    rows+=`<tr><td colspan="6" style="${td};font-weight:bold;background:#e8eef7">${esc(s.name)}</td></tr>`;
+    s.systems.forEach(sy=>{
+      rows+=`<tr><td colspan="6" style="${td};font-weight:bold;color:#444">${sy.name==='Без системы'?'Без системы':'Система '+esc(sy.name)}</td></tr>`;
+      sy.rows.map(actPosNorm).forEach(p=>{n++;rows+=`<tr><td style="${td}">${n}</td><td style="${td}">${esc(p.name||'')}</td><td style="${td}">${esc(p.unit||'')}</td><td style="${td};text-align:center" x:num>${p.qty!=null&&p.qty!==''?+p.qty:''}</td><td style="${td};text-align:center" x:num>${actLinOf(p)||''}</td><td style="${td};text-align:center" x:num>${p.m2?+p.m2:''}</td></tr>`;});
+      actSubtotals(sy.rows).forEach((t,i)=>{rows+=`<tr><td colspan="2" style="${td};text-align:right;font-weight:bold">${i===0?(sy.name==='Без системы'?'Итого без системы: ':'Итого по системе '+esc(sy.name)+': '):''}${esc(t.label)}</td><td style="${td};font-weight:bold">${esc(t.unit)}</td><td style="${td};font-weight:bold;text-align:center" x:num>${t.qty||''}</td><td style="${td};font-weight:bold;text-align:center" x:num>${actLinOf(t)||''}</td><td style="${td};font-weight:bold;text-align:center" x:num>${t.m2||''}</td></tr>`;});
+    });
+  });
+  if(actShowTotals(m.a)){rows+=`<tr><td colspan="6" style="${td};font-weight:bold;background:#dde3ec">Итого по акту</td></tr>`;actTotalsLines(m.a).filter(t=>!t.empty).forEach(t=>{rows+=`<tr><td colspan="2" style="${td};text-align:right;font-weight:bold">${esc(t.label)}</td><td style="${td};font-weight:bold">${esc(t.unit)}</td><td style="${td};font-weight:bold;text-align:center" x:num>${t.qty||''}</td><td style="${td};font-weight:bold;text-align:center" x:num>${actLinOf(t)||''}</td><td style="${td};font-weight:bold;text-align:center" x:num>${t.m2||''}</td></tr>`;});}
+  const html='<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>'
+    +`<table style="font-family:'Times New Roman',Times,serif"><tr><td colspan="6" style="font-size:15pt;font-weight:bold">МК Инжиниринг · ${esc(m.title)}</td></tr><tr><td colspan="6">${esc(m.meta)}</td></tr>${(m.a.comment&&m.a.comment.trim())?`<tr><td colspan="6">Комментарий: ${esc(m.comment||m.a.comment)}</td></tr>`:''}`
+    +`<tr>${['№','Наименование','Ед.','Кол-во','м.п.','м²'].map(h=>`<th style="${td};background:#224497;color:#fff">${h}</th>`).join('')}</tr>${rows}<tr></tr><tr></tr>`
+    +`<tr><td colspan="2">Сдал (бригада): ____________________ / ${esc(m.a.brigade||'')}</td><td colspan="4">Принял: ____________________ / ____________________</td></tr></table></body></html>`;
+  regDownloadBlob(new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'}),m.file+'.xls');
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function groupNum(n){if(n==null||n==='')return '';const neg=(+n)<0;const s=Math.abs(+n).toString().split('.');s[0]=s[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');return (neg?'-':'')+s.join(',');}
+function fmtReqDate(s){if(!s)return '—';if(String(s).indexOf('-')>=0){const p=String(s).split('-');return p[2]+'.'+p[1]+'.'+p[0];}return s;}
+function regLogoPngB64(){
+  return new Promise(function(res){
+    try{var src=(typeof LOGO_DARKTXT!=='undefined')?LOGO_DARKTXT:''; if(!src){res('');return;}
+      var img=new Image();
+      img.onload=function(){try{var W=336,H=Math.round(W*((img.height||63.4)/(img.width||153.4)));var cv=document.createElement('canvas');cv.width=W;cv.height=H;cv.getContext('2d').drawImage(img,0,0,W,H);var u=cv.toDataURL('image/png');res((u.split(',')[1])||'');}catch(e){res('');}};
+      img.onerror=function(){res('');};img.src=src;
+    }catch(e){res('');}
+  });
+}
+
+function actObjectName(a){return (a&&a.object)||'—';}
+function actPeriod(a){return '';}
+function regDownloadBlob(blob,name){var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1500);}
+var _xl=null;function regEnsureExcelJs(){if(window.ExcelJS)return Promise.resolve(true);if(_xl)return _xl;_xl=new Promise(function(res){var s=document.createElement('script');s.src='exceljs.min.js';s.onload=function(){res(!!window.ExcelJS);};s.onerror=function(){res(false);};document.head.appendChild(s);});return _xl;}
+// режим «объёмы»: кнопка Excel собирает акт как на сайте (логотип, Times New Roman, разделы → системы → позиции, подытоги)
+var _csv=window.expCSV;
+window.expCSV=function(){
+  if(!document.body.classList.contains('mk-act'))return _csv.apply(this,arguments);
+  var items=ci();if(!items.length){alert('Список пуст');return;}
+  var o=curObj();var pos=[];try{pos=window.mkCollectPublic?window.mkCollectPublic():[];}catch(e){}
+  var a={id:'phone',no:'',date:(o.date||todayISO()),object:on(),brigade:o.eng||'',from:'',to:'',positions:pos,comment:''};
+  var m=actExModel(a);
+  var dl=window.regDownloadBlob||regDownloadBlob;
+  regEnsureExcelJs().then(function(ok){
+    if(!ok||!window.ExcelJS){actExXlsHtml(m);return;}
+    regLogoPngB64().then(function(b64){actBuildXlsx(m,b64).then(function(blob){(window.regDownloadBlob||regDownloadBlob)(blob,m.file+'.xlsx');}).catch(function(){actExXlsHtml(m);});});
+  });
+};
+document.querySelectorAll('button[onclick="expCSV()"]').forEach(function(b){b.textContent='📊 Excel';});
+})();
+</script>
 <script>
 (function(){function fix(){try{var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n,L=[];while((n=w.nextNode()))L.push(n);
-L.forEach(function(t){var p=t.parentNode;if(!p||/^(SCRIPT|STYLE)$/.test(p.nodeName))return;var v=t.nodeValue;if(v.indexOf("аявк")<0)return;
+L.forEach(function(t){var p=t.parentNode;if(!p||/^(SCRIPT|STYLE)$/.test(p.nodeName))return;if(p.closest&&p.closest('.mk-mode,.mk-sheet,#mk-acc'))return;var v=t.nodeValue;if(v.indexOf("аявк")<0)return;
 t.nodeValue=v.replace("Заявка / PDF","Объёмы / PDF").replace(/в заявку/g,"в список").replace(/Заявка пуста/g,"Список пуст").replace(/Заявка/g,"Объёмы").replace(/заявки/g,"объёмов");});}catch(e){}}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",fix);else fix();setTimeout(fix,400);
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){try{r.update();}catch(e){}}).catch(function(){});});}
