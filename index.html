@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Вентиляция">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="vent-build" content="20261022-140929">
+<meta name="vent-build" content="20261022-142334">
 
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -2602,7 +2602,7 @@ if('serviceWorker' in navigator){
         if(ACT){ if(r.t===0&&r.lin>0){amt=+r.lin.toFixed(2);unit='м.п.';} else {amt=R3(r.qty);unit=metal?'шт':(r.unit0||'шт');} }   // воздуховоды в акте — всегда м.п. (штуки × длина секции), фасонка — шт
         var name=ACT?window.mkActName({t:r.t,desc:r.desc,iso:!!r.isoK,ia:r.isoK?1:0,imt:r.imt,ith:r.ith,comp:r.comp,th:r.th}):String(r.desc||'');
         var VF='Воздуховоды и фасонные элементы';
-        var GRP={0:VF,1:VF,2:VF,3:VF,4:VF,5:VF,22:VF,23:VF,15:'Медь',17:'Кабель',19:'Лотки',25:'Дренаж',21:'Гибкие воздуховоды',11:'Оборудование',8:'Прочее'};
+        var GRP={0:VF,1:VF,2:VF,3:VF,4:VF,5:VF,6:'Решётки',7:'Клапаны',22:VF,23:'Нестандартные изделия',9:'Изоляция (материал)',24:'Изоляция (материал)',10:'Крепёж',15:'Медь',16:'Трубная изоляция',17:'Кабель',18:'Датчики',19:'Лотки',20:'Гофра',25:'Дренаж',26:'Фитинги',21:'Гибкие воздуховоды',11:'Оборудование',8:'Прочее'};
         var pos={sect:r.sect,sub:r.sub,sys:r.sys,name:name.replace(/\s+/g,' ').trim(),qty:amt,unit:unit,grp:GRP[r.t]||String(r.sub||'').replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim()};
         if(ACT&&metal)pos.m2=+r.mt.toFixed(2);                                          // металл, м²
         if(ACT&&r.th)pos.th=r.th;                                                        // толщина стали, мм
@@ -2743,17 +2743,18 @@ if('serviceWorker' in navigator){
         tr: {form:'f1',  iso:'triso', imt:'trimt', tog:togISO_tr, size:function(){var s1=document.getElementById('ts1').value,s2=document.getElementById('ts2').value;var a1=sz('ta1'),b1=sz('tb1'),a2=sz('ta2'),b2=sz('tb2');if(s1==='round'&&s2==='round')return ['round',Math.max(a1,a2),0];return ['rect',Math.max(a1,a2),Math.max(s1==='round'?a1:b1,s2==='round'?a2:b2)];}},
         b:  {form:'f2',  iso:'biso',  imt:'bimt',  tog:togISO_b,  size:function(){var v=bGet();return v.sh==='round'?['round',v.d,0]:['rect',v.a,v.b];}},
         ee: {form:'f3',  iso:'eeiso', imt:'eeimt', tog:togISO_ee, size:function(){var sh=document.getElementById('teesh').value;var a=sz('eea'),b=sz('eeb'),c=sz('eec'),d=sz('eed');return sh==='round'?['round',Math.max(a,c),0]:['rect',Math.max(a,c),Math.max(b,d)];}},
-        cap:{form:'f5',  iso:'capiso',imt:'capimt',tog:togISO_cap,size:function(){var s=document.getElementById('capsh').value;return s==='round'?['round',sz('capa'),0]:['rect',sz('capa'),sz('capb')];}}
+        cap:{form:'f5',  iso:'capiso',imt:'capimt',tog:togISO_cap,size:function(){var s=document.getElementById('capsh').value;return s==='round'?['round',sz('capa'),0]:['rect',sz('capa'),sz('capb')];}},
+        np: {form:'f22', iso:null,    imt:null,    tog:null,      size:function(){var man=document.getElementById('np-mantog');var d=0;if(man&&man.checked){d=parseFloat((String((document.getElementById('np-manname')||{}).value||'').match(/\d{2,4}/)||[0])[0])||0;}else{d=parseFloat((document.getElementById('np-d')||{}).value)||0;}return ['round',d,0];}}
       };
-      var T_PREF={0:'d',1:'tr',2:'b',3:'ee',5:'cap'};
+      var T_PREF={0:'d',1:'tr',2:'b',3:'ee',5:'cap',22:'np'};
       var busy=false;
-      var calc=function(pref){var f=F[pref];try{var sz0=f.size();if(!(sz0[1]>0))return null;var th=gost(sz0[0],sz0[1],sz0[2]);var iso=document.getElementById(f.iso),mat=document.getElementById(f.imt);if((iso&&iso.checked&&mat&&fireMat(mat.value))||fireSys())th=Math.max(th,0.8);return fmt(th);}catch(e){return null;}};
+      var calc=function(pref){var f=F[pref];try{var sz0=f.size();if(!(sz0[1]>0))return null;var th=gost(sz0[0],sz0[1],sz0[2]);var iso=f.iso?document.getElementById(f.iso):null,mat=f.imt?document.getElementById(f.imt):null;if((iso&&iso.checked&&mat&&fireMat(mat.value))||fireSys())th=Math.max(th,0.8);return fmt(th);}catch(e){return null;}};
       window.mkThVal=function(pref){var sl=document.getElementById(pref+'-th');if(!sl)return '';if(sl.value==='__own'){var o=document.getElementById(pref+'-th-own');return o?String(o.value).replace(',','.').trim():'';}return sl.value;};
       var setSel=function(pref,v){var sl=document.getElementById(pref+'-th'),own=document.getElementById(pref+'-th-own');if(!sl)return;var has=TH_OPTS.indexOf(v)>=0;if(has){sl.value=v;if(own)own.style.display='none';}else{sl.value='__own';if(own){own.style.display='block';own.value=v;}}};
       var refresh=function(pref){var f=F[pref];if(!document.getElementById(pref+'-th'))return;var cb=document.getElementById(pref+'-thauto');var on=cb?cb.checked:auto;var sl=document.getElementById(pref+'-th'),own=document.getElementById(pref+'-th-own');sl.disabled=on;if(own)own.disabled=on;
         if(on){ if(busy)return;busy=true;try{
             // ДУ/ПД — автоматически в огнезащите
-            if(fireSys()){var iso=document.getElementById(f.iso),mat=document.getElementById(f.imt);if(iso&&!iso.checked){iso.checked=true;try{f.tog();}catch(e){}}if(mat&&!fireMat(mat.value)){mat.value='PRO-МБОР';}}
+            if(fireSys()&&f.iso){var iso=document.getElementById(f.iso),mat=document.getElementById(f.imt);if(iso&&!iso.checked){iso.checked=true;try{if(f.tog)f.tog();}catch(e){}}if(mat&&!fireMat(mat.value)){mat.value='PRO-МБОР';}}
             var v=calc(pref);if(v)setSel(pref,v);
           }finally{busy=false;} }
         var hint=document.getElementById(pref+'-th-hint');if(hint)hint.textContent=on?('по ГОСТ'+(fireSys()?' · ДУ/ПД → не менее 0,8':'')):'вручную';};
@@ -2818,6 +2819,8 @@ if('serviceWorker' in navigator){
       try{
         if(it&&(it.t===15||it.t===25)){var pref=it.t===15?'cu':'dr';var on=document.getElementById(pref+'-ison');if(on&&on.checked){var mat=val(pref+'-imat'),th=val(pref+'-ith');it.comp={kind:'ti',mat:mat,th:th};}}
         if(it&&it.t===0&&window.__mkLin&&window.__mkLin())it.linMode=true;
+        if(it&&it.t===22){var NIP_L=0.1;/* длина ниппеля, м */var man=document.getElementById('np-mantog');var D=0;if(man&&man.checked){D=parseFloat((String(it.desc||'').match(/\d{2,4}/)||[0])[0])||0;}else{D=parseFloat((document.getElementById('np-d')||{}).value)||0;}
+          if(D>0){var q=+it.qty||0;it.mt=Math.round(Math.PI*D/1000*NIP_L*q*10000)/10000;it.ar=it.mt;it.ar1=Math.round(Math.PI*D/1000*NIP_L*10000)/10000;it.p=Object.assign({},it.p||{},{D:D,L:NIP_L});}}   /* ниппель в акте — квадратура как у фасонки */
         if(it&&it.t===17){var on2=document.getElementById('cb-ison');if(on2&&on2.checked){it.comp={kind:'gf',mat:val('cb-gmat'),d:val('cb-gd')};}}
         if(it&&it.iso&&it.imt==='Другое'){var ids={0:'dimt',1:'trimt',2:'bimt',3:'eeimt',5:'capimt'};var m=document.getElementById((ids[it.t]||'dimt')+'-own');if(m&&m.value.trim())it.imt=m.value.trim();}
       }catch(e){}
@@ -3031,18 +3034,20 @@ function actPosNorm(p){if(!p)return p;let q=p;if(q.m2==null&&q.unit==='м²'&&q.
     if(q.comp)parts.push(q.comp.kind==='ti'?'в изоляции '+(q.comp.mat||'')+(q.comp.th?' '+q.comp.th+' мм':''):'в гофре '+(q.comp.mat||'')+(q.comp.d?' Ø'+q.comp.d:''));
     const nm=parts.map(x=>x.replace(/\s+/g,' ').trim()).filter(Boolean).join(', ');if(nm!==q.name)q=Object.assign({},q,{name:nm});}
   return q;}
-function actSubtotals(rows){
+function actSubtotals(rows,opt){
   const M={},order=[];const add=(k,label,qty,unit,lin,m2)=>{if(!M[k]){M[k]={label,qty:0,unit,lin:0,m2:0};order.push(k);}M[k].qty+=(+qty||0);M[k].lin+=(+lin||0);M[k].m2+=(+m2||0);};
   // железо (воздуховоды + фасонка) — одной строкой в м.п. и м²; затем по строке «в изоляции тип толщина» на каждый вид изоляции
   const VF='Воздуховоды и фасонные элементы';
-  (rows||[]).map(actPosNorm).forEach(p=>{let b=p.grp||actSubBase(p.sub);if(b==='Воздуховоды'||b==='Фасонные части')b=VF;if(b==='Оборудование'||b==='Прочее'||p.sect==='Оборудование')return; /* оборудование суммируется только по правилам пользователя */ const metal=(+p.m2>0);const thL=(b===VF&&p.th)?', b - '+String(p.th).replace('.',',')+'мм':'';add('m|'+b+'|'+(metal?'':(p.unit||''))+'|'+(p.th||''),b+thL,metal?0:p.qty,metal?'':(p.unit||''),p.lin||0,p.m2||0);
+  (rows||[]).map(actPosNorm).forEach(p=>{let b=p.grp||actSubBase(p.sub);if(b==='Воздуховоды'||b==='Фасонные части')b=VF;if(b==='Оборудование'||b==='Прочее'||p.sect==='Оборудование')return; /* оборудование суммируется только по правилам пользователя */ const metal=(+p.m2>0);
+    if(b===VF&&!metal){const n=String(p.name||'');b=/реш[её]тк/i.test(n)?'Решётки':/клапан/i.test(n)?'Клапаны':/ниппел/i.test(n)?'Ниппели':/гибк/i.test(n)?'Гибкие воздуховоды':'Прочие изделия';} /* штучное без площади металла — не «воздуховоды» */ const thL=(b===VF&&p.th)?', b - '+String(p.th).replace('.',',')+'мм':'';add('m|'+b+'|'+(metal?'':(p.unit||''))+'|'+(p.th||''),b+thL,metal?0:p.qty,metal?'':(p.unit||''),p.lin||0,p.m2||0);
     if(p.iso&&p.iso.m2>0){const il=(p.iso.mat||'')+(p.iso.th?' '+p.iso.th+' мм':'');add('i|'+b+'|'+p.iso.mat+'|'+p.iso.th,(b===VF?'В изоляции ':b+' в изоляции ')+il,0,'',p.iso.lin||p.lin||0,p.iso.m2);}
     if(p.comp&&p.comp.qty>0)add('c|'+b+'|'+p.comp.kind+'|'+p.comp.mat+'|'+(p.comp.th||p.comp.d),b+(p.comp.kind==='ti'?' в изоляции '+(p.comp.mat||'')+(p.comp.th?' '+p.comp.th+' мм':''):' в гофре '+(p.comp.mat||'')+(p.comp.d?' Ø'+p.comp.d:'')),p.comp.qty,p.comp.unit||'м',0,0);});
   const R=x=>Math.round(x*1000)/1000;
   // порядок: сначала железо/виды, затем строки «в изоляции…», затем спутники (труб. изоляция, гофра)
   const rank=k=>k[0]==='m'?0:k[0]==='i'?1:2;
   const thOf=k=>{const m=k.split('|');return (k.startsWith('m|'+VF+'|')&&m[3]!=='')?parseFloat(m[3]):NaN;};
-  return order.map((k,i)=>[k,i]).sort((x,y)=>rank(x[0])-rank(y[0])||((!isNaN(thOf(x[0]))&&!isNaN(thOf(y[0])))?thOf(x[0])-thOf(y[0]):0)||x[1]-y[1]).map(([k])=>({label:M[k].label.replace(/\s+/g,' ').trim(),qty:R(M[k].qty),unit:M[k].unit,lin:R(M[k].lin),m2:R(M[k].m2)}));
+  // решение Камиля (22.10.2026): автоматически показываем только воздуховоды с фасонкой (по толщинам) и изоляцию воздуховодов; остальное — только своими строками итога
+  return order.map((k,i)=>[k,i]).sort((x,y)=>rank(x[0])-rank(y[0])||((!isNaN(thOf(x[0]))&&!isNaN(thOf(y[0])))?thOf(x[0])-thOf(y[0]):0)||x[1]-y[1]).map(([k])=>({label:M[k].label.replace(/\s+/g,' ').trim(),qty:R(M[k].qty),unit:M[k].unit,lin:R(M[k].lin),m2:R(M[k].m2)})).filter(t=>(opt&&opt.all)||t.label===VF||t.label.indexOf(VF+',')===0||/^В изоляции /.test(t.label));
 }
 function actLinOf(p){const l=+p.lin||0;if(!l)return 0;if(/^м(\.п\.)?$/.test(String(p.unit||''))&&l===+p.qty)return 0;return l;}
 function actRuleMatch(p,r){const n=String(p.name||'');if(r.names&&r.names.indexOf(n)>=0)return true;const kw=String(r.kw||'').trim().toLowerCase();return !!kw&&n.toLowerCase().indexOf(kw)>=0;}
